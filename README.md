@@ -1,10 +1,12 @@
 # ELA Tutor Chatbot
 
-An interactive English Language Arts (ELA) tutor chatbot built with React and Claude 3.5 Sonnet. This application helps students with reading comprehension, writing skills, grammar, vocabulary, and literature analysis while maintaining strict academic integrity.
+An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 Sonnet via Echo. This application helps students with reading comprehension, writing skills, grammar, vocabulary, and literature analysis while maintaining strict academic integrity.
 
 ## Features
 
 - **AI-Powered Responses**: Uses Claude 3.5 Sonnet for intelligent, contextual responses
+- **Built-in Authentication**: Secure OAuth2 authentication via Echo
+- **Token Management**: Automatic credit tracking and payment processing
 - **Academic Integrity Protection**: Built-in safeguards against writing requests
 - **Interactive Chat Interface**: Real-time conversation with an AI tutor
 - **Topic Shortcuts**: Quick access to different ELA subjects
@@ -28,37 +30,47 @@ An interactive English Language Arts (ELA) tutor chatbot built with React and Cl
 
 - Node.js (version 14 or higher)
 - npm or yarn
-- Anthropic API key (Claude 3.5 Sonnet)
+- Echo account and app ID
 
-### Installation
+### Setup
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd ela-tutor-chatbot
-```
+1. **Create an Echo App**:
+   - Visit [https://echo.merit.systems](https://echo.merit.systems)
+   - Sign up and create a new app
+   - Copy your app ID from the dashboard
 
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-   - Create a `.env` file in the root directory
-   - Add your Anthropic API key:
+2. **Clone and Install**:
+   ```bash
+   git clone <repository-url>
+   cd ela-tutor-chatbot
+   npm install
    ```
-   ANTHROPIC_API_KEY=your_actual_api_key_here
+
+3. **Configure Echo**:
+   - Open `src/index.js`
+   - Replace `'your-echo-app-id'` with your actual Echo app ID
+   - Set your callback URL in the Echo dashboard to your app's URL
+
+4. **Start the Development Server**:
+   ```bash
+   npm start
    ```
-   - Get your API key from [Anthropic Console](https://console.anthropic.com/)
 
-4. Start the development servers:
-```bash
-npm run dev
-```
+5. **Open [http://localhost:3000](http://localhost:3000)** to view it in the browser.
 
-This will start both the backend server (port 3001) and the React frontend (port 3000).
+## How It Works
 
-5. Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### Authentication Flow
+1. Users sign in via Echo's OAuth2 system
+2. Echo provides secure tokens for API access
+3. Users can purchase credits to use the chatbot
+4. All API calls are routed through Echo's secure infrastructure
+
+### AI Integration
+- Uses Claude 3.5 Sonnet via Echo's router
+- Maintains conversation context across messages
+- Enforces academic integrity rules
+- Provides fallback responses if needed
 
 ## Academic Integrity Features
 
@@ -71,66 +83,67 @@ The chatbot includes robust protections against academic dishonesty:
 
 ## Usage
 
-1. **Start a Conversation**: The chatbot will greet you with an introduction
-2. **Choose a Topic**: Click on any of the topic shortcuts at the top
-3. **Ask Questions**: Type your questions about ELA topics
-4. **Follow Suggestions**: Click on suggestion buttons for related topics
-5. **Use Keyboard Shortcuts**: Press Enter to send, Shift+Enter for new line
+1. **Sign In**: Use Echo's authentication to access the chatbot
+2. **Purchase Credits**: Buy credits to use the AI-powered tutoring
+3. **Start Learning**: Ask questions about ELA topics
+4. **Use Topic Shortcuts**: Quick access to different subjects
+5. **Follow Suggestions**: Click suggestion buttons for related topics
 
 ## Technology Stack
 
 - **Frontend**: React 18 with hooks
-- **Backend**: Node.js with Express
-- **AI**: Claude 3.5 Sonnet via Anthropic API
+- **AI**: Claude 3.5 Sonnet via Echo
+- **Authentication**: Echo OAuth2
+- **Payment Processing**: Echo token system
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
-- **Development**: Concurrently for running multiple servers
 
 ## Project Structure
 
 ```
-├── src/
-│   ├── components/
-│   │   └── ELATutorChatbot.js    # Main chatbot component
-│   ├── App.js                    # Root application component
-│   ├── index.js                  # Application entry point
-│   └── index.css                 # Global styles with Tailwind imports
-├── server.js                     # Backend API server
-├── package.json                  # Dependencies and scripts
-├── tailwind.config.js           # Tailwind CSS configuration
-└── .env                          # Environment variables (create this)
+src/
+├── components/
+│   └── ELATutorChatbot.js    # Main chatbot component
+├── App.js                    # Root app with authentication
+├── index.js                  # Entry point with Echo provider
+└── index.css                 # Global styles with Tailwind
 ```
 
-## API Integration
+## Echo Integration Benefits
 
-The chatbot uses Claude 3.5 Sonnet through the Anthropic API with:
-
-- **System Prompt**: Comprehensive ethical guidelines and academic integrity rules
-- **Conversation History**: Maintains context across multiple messages
-- **Error Handling**: Graceful fallback to static responses if API fails
-- **Rate Limiting**: Built-in protection against excessive API calls
+- **No Backend Required**: Echo handles all API routing and authentication
+- **Secure**: No API keys to manage on your end
+- **Scalable**: Echo handles infrastructure and billing
+- **Built-in Payments**: Users can purchase credits seamlessly
+- **OAuth2 Authentication**: Professional authentication system
 
 ## Customization
 
-The chatbot responses can be customized by modifying:
+The chatbot can be customized by modifying:
 
-- **System Prompt**: Update `SYSTEM_PROMPT` in `server.js`
-- **Author Names**: Modify the `famousAuthors` array in `ELATutorChatbot.js`
+- **System Prompt**: Update the `SYSTEM_PROMPT` in `ELATutorChatbot.js`
+- **Author Names**: Modify the `famousAuthors` array
 - **UI Styling**: Update Tailwind classes and CSS
 - **Topic Categories**: Add or modify topics in the `topics` array
 
-## Environment Variables
+## Deployment
 
-Create a `.env` file with:
-```
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-```
+### Vercel (Recommended)
+1. Connect your GitHub repository to Vercel
+2. Set environment variables if needed
+3. Deploy automatically on push
+
+### Netlify
+1. Connect your repository to Netlify
+2. Build command: `npm run build`
+3. Publish directory: `build`
+
+### Other Platforms
+The app is a standard React application and can be deployed to any static hosting service.
 
 ## Available Scripts
 
-- `npm start` - Start React development server only
-- `npm run server` - Start backend API server only
-- `npm run dev` - Start both frontend and backend servers
+- `npm start` - Start development server
 - `npm run build` - Build for production
 - `npm test` - Run tests
 
@@ -148,11 +161,13 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## Support
 
-For questions or support, please open an issue in the repository.
+For questions or support:
+- Echo-related issues: [Echo Documentation](https://echo.merit.systems)
+- Project issues: Open an issue in this repository
 
 ## Security Notes
 
-- Never commit your `.env` file to version control
-- Keep your API key secure and private
-- The application includes rate limiting and error handling
-- All user interactions are processed locally and through secure API calls 
+- All authentication is handled securely by Echo
+- No API keys are stored in the frontend
+- User data is protected by Echo's security measures
+- Academic integrity rules are enforced at multiple levels 
