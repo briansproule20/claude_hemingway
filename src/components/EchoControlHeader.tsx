@@ -8,7 +8,9 @@ const EchoControlHeader: React.FC = () => {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseAmount, setPurchaseAmount] = useState(100);
   const [showCreditInfo, setShowCreditInfo] = useState(false);
+  const [showAccountPopup, setShowAccountPopup] = useState(false);
   const creditInfoRef = useRef<HTMLDivElement>(null);
+  const accountPopupRef = useRef<HTMLDivElement>(null);
 
   // Check if we have placeholder/default values or session issues
   const hasPlaceholderData = user?.id === 'unknown' || user?.email === '' || user?.name === 'User';
@@ -33,13 +35,16 @@ const EchoControlHeader: React.FC = () => {
       if (creditInfoRef.current && !creditInfoRef.current.contains(event.target as Node)) {
         setShowCreditInfo(false);
       }
+      if (accountPopupRef.current && !accountPopupRef.current.contains(event.target as Node)) {
+        setShowAccountPopup(false);
+      }
     };
 
-    if (showCreditInfo) {
+    if (showCreditInfo || showAccountPopup) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showCreditInfo]);
+  }, [showCreditInfo, showAccountPopup]);
 
   // Handle session expiration
   useEffect(() => {
@@ -340,27 +345,33 @@ const EchoControlHeader: React.FC = () => {
               {/* User Info & Credits */}
               <div className="flex items-center space-x-3 sm:space-x-6">
               <div className="flex items-center space-x-3">
-                {user?.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name || 'Echo Account'}
-                    className="w-8 h-8 rounded-full border-2 border-white/20"
-                  />
-                ) : (
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-bold text-white">
-                      {user?.name ? user.name.charAt(0).toUpperCase() : 'E'}
-                    </span>
+                <button
+                  onClick={() => setShowAccountPopup(!showAccountPopup)}
+                  className="flex items-center space-x-3 hover:bg-white/10 rounded-lg p-2 transition-colors"
+                  title="Click to view account details"
+                >
+                  {user?.picture ? (
+                    <img
+                      src={user.picture}
+                      alt={user.name || 'Echo Account'}
+                      className="w-8 h-8 rounded-full border-2 border-white/20"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-bold text-white">
+                        {user?.name ? user.name.charAt(0).toUpperCase() : 'E'}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {user?.name || 'Echo Account'}
+                    </p>
+                    <p className="text-xs opacity-80">
+                      {user?.email || 'Loading account...'}
+                    </p>
                   </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium">
-                    {user?.name || 'Echo Account'}
-                  </p>
-                  <p className="text-xs opacity-80">
-                    {user?.email || 'Loading account...'}
-                  </p>
-                </div>
+                </button>
               </div>
 
               {/* Credits Display */}
@@ -502,6 +513,105 @@ const EchoControlHeader: React.FC = () => {
           <button
             onClick={() => setShowCreditInfo(false)}
             className="mt-3 text-xs text-blue-600 hover:text-blue-800"
+          >
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* Account Popup */}
+      {showAccountPopup && (
+        <div 
+          ref={accountPopupRef}
+          className="absolute top-16 left-4 bg-white rounded-lg shadow-xl p-4 max-w-sm z-40 border"
+        >
+          <h4 className="font-semibold text-gray-900 mb-3">Account Profile</h4>
+          
+          {/* User Info */}
+          <div className="text-sm text-gray-600 space-y-3">
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg">
+              <div className="flex items-center space-x-3 mb-2">
+                {user?.picture ? (
+                  <img
+                    src={user.picture}
+                    alt={user.name || 'Echo Account'}
+                    className="w-12 h-12 rounded-full border-2 border-white"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-lg font-bold text-white">
+                      {user?.name ? user.name.charAt(0).toUpperCase() : 'E'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium text-gray-900">{user?.name || 'Echo Account'}</p>
+                  <p className="text-xs text-gray-500">{user?.email || 'Loading...'}</p>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 border-t pt-2">
+                <p><strong>Account ID:</strong> {user?.id || 'Authenticating...'}</p>
+              </div>
+            </div>
+
+            {/* Account Balance */}
+            <div className="bg-yellow-50 p-3 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Coins className="w-4 h-4 text-yellow-600" />
+                <div>
+                  <p className="font-medium text-gray-900">{balance?.credits || 0} Credits</p>
+                  <p className="text-xs text-gray-500">Current balance</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Merit System Links */}
+            <div className="border-t pt-3">
+              <h5 className="font-medium text-gray-900 mb-2">Merit Systems</h5>
+              <div className="space-y-2">
+                {platformLinks.map((link) => (
+                  <a
+                    key={link.name}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-2 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                    title={link.description}
+                  >
+                    <link.icon className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm text-gray-700">{link.name}</span>
+                    <ExternalLink className="w-3 h-3 text-gray-400 ml-auto" />
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Account Actions */}
+            <div className="border-t pt-3">
+              <h5 className="font-medium text-gray-900 mb-2">Account Actions</h5>
+              <div className="space-y-2">
+                <button
+                  onClick={handleBuyCreditsRedirect}
+                  className="flex items-center space-x-2 w-full p-2 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left"
+                >
+                  <CreditCard className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700">Buy Credits</span>
+                  <ExternalLink className="w-3 h-3 text-green-400 ml-auto" />
+                </button>
+                <button
+                  onClick={signOut}
+                  className="flex items-center space-x-2 w-full p-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors text-left"
+                >
+                  <span className="text-sm">🚪</span>
+                  <span className="text-sm text-red-700">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => setShowAccountPopup(false)}
+            className="mt-4 text-xs text-blue-600 hover:text-blue-800"
           >
             Close
           </button>
