@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import './App.css';
 import EchoControlHeader from './components/EchoControlHeader';
 import ELATutorChatbot from './components/ELATutorChatbot';
 import ErrorBoundary from './components/ErrorBoundary';
