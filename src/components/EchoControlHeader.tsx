@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useEcho, EchoTokenPurchase } from '@zdql/echo-react-sdk';
-import { CreditCard, ExternalLink, RefreshCw, Coins, Globe, Settings } from 'lucide-react';
+import { CreditCard, ExternalLink, RefreshCw, Coins, Globe, Settings, Languages, ChevronDown } from 'lucide-react';
+import { useLanguage } from '../App';
 
 const EchoControlHeader: React.FC = () => {
   const { user, balance, refreshBalance, createPaymentLink, signOut, error } = useEcho();
+  const { currentLanguage, setCurrentLanguage, languageOptions } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseAmount, setPurchaseAmount] = useState(100);
   const [showCreditInfo, setShowCreditInfo] = useState(false);
   const [showAccountPopup, setShowAccountPopup] = useState(false);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const creditInfoRef = useRef<HTMLDivElement>(null);
   const accountPopupRef = useRef<HTMLDivElement>(null);
+  const languageDropdownRef = useRef<HTMLDivElement>(null);
 
   // Check if we have placeholder/default values or session issues
   const hasPlaceholderData = user?.id === 'unknown' || user?.email === '' || user?.name === 'User';
@@ -38,13 +42,16 @@ const EchoControlHeader: React.FC = () => {
       if (accountPopupRef.current && !accountPopupRef.current.contains(event.target as Node)) {
         setShowAccountPopup(false);
       }
+      if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+        setShowLanguageDropdown(false);
+      }
     };
 
-    if (showCreditInfo || showAccountPopup) {
+    if (showCreditInfo || showAccountPopup || showLanguageDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showCreditInfo, showAccountPopup]);
+  }, [showCreditInfo, showAccountPopup, showLanguageDropdown]);
 
   // Handle session expiration
   useEffect(() => {
@@ -253,6 +260,17 @@ const EchoControlHeader: React.FC = () => {
     }
   ];
 
+  const getCurrentLanguage = () => {
+    return languageOptions.find(lang => lang.code === currentLanguage) || languageOptions[0];
+  };
+
+  const handleLanguageChange = (languageCode: string) => {
+    setCurrentLanguage(languageCode);
+    setShowLanguageDropdown(false);
+    
+    console.log('Language changed to:', languageCode);
+  };
+
   const inspectOIDCData = () => {
     console.log('🔍 === DETAILED OIDC DATA INSPECTION ===');
     
@@ -413,6 +431,49 @@ const EchoControlHeader: React.FC = () => {
 
                           {/* Actions */}
               <div className="flex items-center space-x-2 sm:space-x-4">
+                {/* Language Switcher */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                    className="flex items-center space-x-1 sm:space-x-2 bg-white/10 hover:bg-white/20 text-white px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm transition-colors"
+                    title="Switch language"
+                  >
+                    <Languages className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">{getCurrentLanguage().flag}</span>
+                    <span className="hidden lg:inline">{getCurrentLanguage().name}</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+
+                  {/* Language Dropdown */}
+                  {showLanguageDropdown && (
+                    <div
+                      ref={languageDropdownRef}
+                      className="absolute top-12 right-0 bg-white rounded-lg shadow-xl border z-50 min-w-[180px]"
+                    >
+                      <div className="p-2">
+                        <h4 className="text-sm font-medium text-gray-900 mb-2 px-2">Choose Language</h4>
+                        {languageOptions.map((language) => (
+                          <button
+                            key={language.code}
+                            onClick={() => handleLanguageChange(language.code)}
+                            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                              currentLanguage === language.code
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="text-lg">{language.flag}</span>
+                            <span className="flex-1 text-left">{language.name}</span>
+                            {currentLanguage === language.code && (
+                              <span className="text-blue-600 text-xs">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Purchase Credits Button */}
                 <button
                   onClick={handleBuyCreditsRedirect}

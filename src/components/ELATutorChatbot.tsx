@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useEcho } from '@zdql/echo-react-sdk';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
+import { useLanguage } from '../App';
 import { 
   BookOpen, 
   Users, 
@@ -45,20 +46,51 @@ const ELATutorChatbot: React.FC = () => {
   
   // Get Echo SDK context for authentication and billing
   const { isAuthenticated, balance, token, refreshBalance } = useEcho() as any;
+  const { currentLanguage, languageOptions } = useLanguage();
   
   console.log('🔑 Environment check on mount:', {
     apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'Present' : 'Missing',
     echoAppId: process.env.REACT_APP_ECHO_APP_ID ? 'Present' : 'Missing',
     echoAuthenticated: isAuthenticated ? 'Yes' : 'No',
     echoBalance: balance?.credits || 0,
-    hasToken: !!token
+    hasToken: !!token,
+    currentLanguage: currentLanguage
   });
+
+  // Get current language details
+  const getCurrentLanguage = () => {
+    return languageOptions.find(lang => lang.code === currentLanguage) || languageOptions[0];
+  };
+
+  const getLanguageInstructions = () => {
+    const lang = getCurrentLanguage();
+    switch (lang.code) {
+      case 'es':
+        return 'Responde en español. Eres un tutor de inglés como lengua extranjera (ELA) que ayuda a estudiantes hispanohablantes a aprender inglés. Proporciona explicaciones claras en español y ejemplos en inglés cuando sea apropiado.';
+      case 'ht':
+        return 'Reponn nan Kreyòl Ayisyen. Ou se yon pwofesè ELA (English Language Arts) ki ap ede elèv yo ki pale Kreyòl aprann anglè. Bay eksplikasyon ki klè nan Kreyòl ak egzanp nan anglè lè sa apropye.';
+      default:
+        return 'Respond in English. You are an ELA (English Language Arts) tutor helping students learn English language skills.';
+    }
+  };
   
+  const getInitialMessage = () => {
+    const lang = getCurrentLanguage();
+    switch (lang.code) {
+      case 'es':
+        return '¡Hola! 👋 Soy tu tutor de inglés como lengua extranjera (ELA). Estoy aquí para ayudarte con:\n\n• Comprensión de lectura\n• Escritura y gramática\n• Vocabulario\n• Análisis literario\n• Preparación para exámenes\n\n¿En qué puedo ayudarte hoy? (Puedes preguntarme en español o inglés)';
+      case 'ht':
+        return 'Bonjou! 👋 Mwen se pwofesè ELA (English Language Arts) ou an. Mwen la pou ede w ak:\n\n• Konprann lekti\n• Ekriti ak gramè\n• Vokabilè\n• Analiz literè\n• Preparasyon egzamen\n\nKisa mwen ka ede w ak jodi a? (Ou ka mande m nan Kreyòl oswa nan anglè)';
+      default:
+        return 'Hello! 👋 I\'m your ELA (English Language Arts) tutor. I\'m here to help you with:\n\n• Reading comprehension\n• Writing and grammar\n• Vocabulary building\n• Literary analysis\n• Test preparation\n\nWhat can I help you with today?';
+    }
+  };
+
   const initialMessage = (author: string): Message[] => ([
     {
       id: 1,
       type: 'bot',
-      content: `Hi! I'm Claude ${author}, your ELA tutor. I'm here to help you with reading comprehension, writing, grammar, vocabulary, and literature analysis. What would you like to work on today?`,
+      content: getInitialMessage(),
       timestamp: new Date()
     }
   ]);
@@ -173,6 +205,11 @@ const ELATutorChatbot: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Update initial message when language changes
+  useEffect(() => {
+    setMessages(initialMessage(selectedAuthor));
+  }, [currentLanguage, selectedAuthor]);
+
   // Update available suggestions when conversation changes
   useEffect(() => {
     const updateSuggestions = async () => {
@@ -242,7 +279,9 @@ const ELATutorChatbot: React.FC = () => {
       // Generate text using AI SDK
       const { text } = await generateText({
         model: openai('gpt-4o'),
-        prompt: `You are a helpful AI assistant specializing in English Language Arts (ELA) tutoring. You help students with reading comprehension, writing, grammar, vocabulary, and literary analysis. Always be encouraging and provide clear explanations.
+        prompt: `${getLanguageInstructions()}
+
+You are a helpful AI assistant specializing in English Language Arts (ELA) tutoring. You help students with reading comprehension, writing, grammar, vocabulary, and literary analysis. Always be encouraging and provide clear explanations.
 
 User message: ${userMessage}
 
