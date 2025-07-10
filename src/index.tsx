@@ -1,14 +1,25 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
+import { EchoProvider } from '@zdql/echo-react-sdk';
 import App from './App';
+import './index.css';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) throw new Error('Failed to find the root element');
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
 
-const root = ReactDOM.createRoot(rootElement);
+// Echo config with proper configuration based on README
+const echoConfig = {
+  instanceId: process.env.REACT_APP_ECHO_APP_ID || '',
+  apiUrl: 'https://echo.merit.systems',
+  redirectUri: 'http://localhost:3000',
+  scope: 'llm:invoke offline_access'
+};
+
 root.render(
   <React.StrictMode>
-    <App />
+    <EchoProvider config={echoConfig}>
+      <App />
+    </EchoProvider>
   </React.StrictMode>
 ); 
