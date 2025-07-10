@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useEcho } from '@zdql/echo-react-sdk';
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import { 
   BookOpen, 
-  PenTool, 
-  FileText, 
-  Lightbulb, 
-  MessageCircle, 
-  CheckCircle, 
-  Send,
-  HelpCircle,
-  Plus
+  Users, 
+  GraduationCap, 
+  Send, 
+  Loader2, 
+  MessageSquare, 
+  User, 
+  Bot, 
+  Sparkles, 
+  ChevronDown,
+  ChevronUp,
+  RefreshCw
 } from 'lucide-react';
 
 // Type definitions
@@ -38,13 +43,15 @@ const famousAuthors: string[] = [
 const ELATutorChatbot: React.FC = () => {
   console.log('🚀 ELATutorChatbot: Component is loading...');
   
-  // Get Echo SDK context
-  const echo = useEcho();
+  // Get Echo SDK context for authentication and billing
+  const { isAuthenticated, balance, token, refreshBalance } = useEcho() as any;
   
   console.log('🔑 Environment check on mount:', {
-    apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'FOUND' : 'NOT FOUND',
-    apiKeyLength: process.env.REACT_APP_ANTHROPIC_API_KEY?.length,
-    apiKeyStart: process.env.REACT_APP_ANTHROPIC_API_KEY?.substring(0, 10)
+    apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'Present' : 'Missing',
+    echoAppId: process.env.REACT_APP_ECHO_APP_ID ? 'Present' : 'Missing',
+    echoAuthenticated: isAuthenticated ? 'Yes' : 'No',
+    echoBalance: balance?.credits || 0,
+    hasToken: !!token
   });
   
   const initialMessage = (author: string): Message[] => ([
@@ -185,13 +192,13 @@ const ELATutorChatbot: React.FC = () => {
 
   const topics: Topic[] = [
     { id: 'reading', name: 'Reading Comprehension', icon: BookOpen },
-    { id: 'writing', name: 'Writing Skills', icon: PenTool },
-    { id: 'grammar', name: 'Grammar & Mechanics', icon: FileText },
-    { id: 'vocabulary', name: 'Vocabulary Building', icon: Lightbulb },
-    { id: 'literature', name: 'Literature Analysis', icon: MessageCircle },
-    { id: 'research', name: 'Research Skills', icon: CheckCircle },
-    { id: 'testprep', name: 'Test Prep', icon: CheckCircle },
-    { id: 'speaking', name: 'Public Speaking', icon: CheckCircle },
+    { id: 'writing', name: 'Writing Skills', icon: Users },
+    { id: 'grammar', name: 'Grammar & Mechanics', icon: GraduationCap },
+    { id: 'vocabulary', name: 'Vocabulary Building', icon: Sparkles },
+    { id: 'literature', name: 'Literature Analysis', icon: MessageSquare },
+    { id: 'research', name: 'Research Skills', icon: ChevronDown },
+    { id: 'testprep', name: 'Test Prep', icon: ChevronUp },
+    { id: 'speaking', name: 'Public Speaking', icon: RefreshCw },
   ];
 
   // Check for writing requests (academic integrity protection)
@@ -205,161 +212,63 @@ const ELATutorChatbot: React.FC = () => {
     return found;
   };
 
-  // Call Echo LLM API using credits
+  // Call Echo LLM using AI SDK approach
   const callEchoLLM = async (userMessage: string): Promise<string> => {
-    console.log('🔮 Calling Echo LLM API...');
+    console.log('🔮 Calling Echo LLM using AI SDK...');
     
     try {
-      // Check if user is authenticated
-      if (!echo?.isAuthenticated) {
+      // Check if user is authenticated with Echo
+      if (!isAuthenticated) {
         return "❌ **Authentication Error**: You need to be signed in to Echo to use AI features. Please sign in and try again.";
       }
 
       // Check if user has credits
-      if (echo.balance && echo.balance.credits <= 0) {
+      if (balance && balance.credits <= 0) {
         return "💳 **No Credits Available**: You're out of Echo credits! Please purchase more credits to continue using AI features. You can buy credits from the header menu.";
       }
 
-      // Get authentication token from sessionStorage
-      const instanceId = process.env.REACT_APP_ECHO_APP_ID;
-      const oidcKey = `oidc.user:https://echo.merit.systems:${instanceId}`;
-      const oidcData = sessionStorage.getItem(oidcKey);
+      if (!token) {
+        return "🔐 **Token Missing**: Authentication token not found. Please sign out and sign in again.";
+      }
+
+      console.log('🌐 Using AI SDK with Echo router...');
       
-      if (!oidcData) {
-        return "🔐 **Token Error**: Authentication token not found. Please sign out and sign back in to Echo.";
-      }
+      // Create OpenAI client pointing to Echo's router
+      const openai = createOpenAI({
+        apiKey: token,
+        baseURL: 'https://echo.router.merit.systems',
+      });
 
-      const parsed = JSON.parse(oidcData);
-      const accessToken = parsed.access_token;
+      // Generate text using AI SDK
+      const { text } = await generateText({
+        model: openai('gpt-4o'),
+        prompt: `You are a helpful AI assistant specializing in English Language Arts (ELA) tutoring. You help students with reading comprehension, writing, grammar, vocabulary, and literary analysis. Always be encouraging and provide clear explanations.
 
-      if (!accessToken) {
-        return "🔐 **Token Error**: Access token not available. Please sign out and sign back in to Echo.";
-      }
+User message: ${userMessage}
 
-      console.log('🌐 Making authenticated call to Echo LLM API');
-      
-      // Try the correct Echo API endpoint for LLM calls
-      const apiEndpoints = [
-        'https://echo.merit.systems/api/v1/llm/chat',
-        'https://echo.merit.systems/api/llm/chat',
-        'https://echo.merit.systems/api/v1/chat',
-        'https://echo.merit.systems/api/chat'
-      ];
+Respond helpfully and educationally to assist the student with their ELA learning.`,
+        temperature: 0.7,
+        maxTokens: 2000,
+      });
 
-      const chatMessages = [
-        {
-          role: 'system',
-          content: `You are Claude, an ELA tutor with a randomly selected famous author's last name. You help students with English Language Arts including reading comprehension, writing, grammar, vocabulary, and literature analysis.
-
-CRITICAL ETHICAL GUIDELINES - YOU MUST FOLLOW THESE:
-1. NEVER write essays, papers, or assignments for students
-2. NEVER complete homework or assignments for students
-3. NEVER provide full written content that students can submit as their own work
-4. ALWAYS redirect writing requests to brainstorming, outlining, and process guidance
-5. Focus on teaching the writing process, not doing the writing
-
-TONE AND TEACHING STYLE:
-- Always be supportive, encouraging, and positive—like a great teacher or mentor.
-- Use affirmations like "Great question!", "You're on the right track!", "Your ideas matter!"
-- End responses with encouragement toward independent thinking.
-
-YOUR ROLE:
-- Help with reading comprehension strategies
-- Guide students through the writing process (brainstorming, outlining, revising)
-- Teach grammar and mechanics
-- Build vocabulary skills
-- Analyze literature and literary devices
-
-Always maintain academic integrity and promote genuine learning.`
-        },
-        ...messages.map(msg => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        })),
-        {
-          role: 'user',
-          content: userMessage
-        }
-      ];
-
-      const requestBody = {
-        model: 'claude-3-haiku-20240307',
-        messages: chatMessages,
-        max_tokens: 500,
-        temperature: 0.7
-      };
-
-      let lastError = '';
-
-      // Try each endpoint until one works
-      for (const endpoint of apiEndpoints) {
-        try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
-          
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody),
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Received response from Echo LLM API');
-            
-            // Refresh balance after LLM call to show updated credits
-            if (echo.refreshBalance) {
-              setTimeout(() => echo.refreshBalance(), 1000); // Delay to allow API processing
-            }
-            
-            // Extract content from different possible response formats
-            if (data.choices && data.choices[0] && data.choices[0].message) {
-              return data.choices[0].message.content;
-            } else if (data.content) {
-              return data.content;
-            } else if (data.response) {
-              return data.response;
-            } else if (data.text) {
-              return data.text;
-            } else if (typeof data === 'string') {
-              return data;
-            } else {
-              return JSON.stringify(data);
-            }
-          } else {
-            const errorText = await response.text();
-            console.log(`❌ ${endpoint} failed: ${response.status} - ${errorText}`);
-            
-            // Check for specific error types
-            if (response.status === 401 || response.status === 403) {
-              return "🔐 **Authentication Failed**: Your Echo session has expired or you don't have permission to use AI features. Please sign out and sign back in.";
-            } else if (response.status === 402 || response.status === 429) {
-              return "💳 **Insufficient Credits**: You don't have enough Echo credits to make this request. Please purchase more credits from the header menu.";
-            } else if (response.status === 503 || response.status === 502) {
-              return "🔧 **Service Unavailable**: Echo AI service is temporarily unavailable. Please try again in a moment.";
-            }
-            
-            lastError = `${response.status}: ${errorText}`;
-            continue;
-          }
-        } catch (endpointError) {
-          console.log(`❌ ${endpoint} error:`, endpointError);
-          lastError = endpointError instanceof Error ? endpointError.message : 'Network error';
-          continue;
-        }
-      }
-
-      // If all endpoints failed, show the actual error
-      return `🚨 **Echo AI Connection Failed**: All Echo API endpoints failed. Last error: ${lastError}. Please check your internet connection and try again.`;
+      console.log('✅ AI SDK Response received');
+      return text;
       
     } catch (error) {
-      console.error('❌ Echo LLM API error:', error);
+      console.error('❌ Echo LLM Error:', error);
       
-      // Return specific error information
-      return `🚨 **Echo AI Error**: ${error instanceof Error ? error.message : 'Unknown error occurred'}. Please try again or contact support if this persists.`;
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          return "🔐 **Authentication Error**: Your session has expired. Please sign out and sign in again.";
+        } else if (error.message.includes('402') || error.message.includes('Payment')) {
+          return "💳 **Payment Required**: You're out of Echo credits! Please purchase more credits to continue using AI features.";
+        } else if (error.message.includes('429') || error.message.includes('Rate')) {
+          return "⏰ **Rate Limited**: You're making requests too quickly. Please wait a moment and try again.";
+        }
+      }
+      
+      return "🚨 **Connection Error**: Failed to connect to Echo AI. Please check your internet connection and try again.";
     }
   };
 
@@ -495,7 +404,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
     }
 
     // Check if user is authenticated with Echo
-    if (!echo?.isAuthenticated) {
+    if (!isAuthenticated) {
       const errorMessage: Message = {
         id: messages.length + 1,
         type: 'bot',
@@ -731,7 +640,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
         <div className="w-80 lg:w-80 md:w-64 hidden md:flex bg-black/30 backdrop-blur-md border-l border-white/10 flex-col overflow-hidden">
           <div className="p-4 border-b border-white/10">
             <div className="flex items-center gap-2">
-              <Lightbulb className="w-4 h-4 text-yellow-400" />
+              <Sparkles className="w-4 h-4 text-yellow-400" />
               <h4 className="text-sm font-semibold text-white">💡 Smart Suggestions</h4>
             </div>
           </div>
@@ -749,7 +658,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
                     <div className="w-1.5 h-1.5 bg-purple-400 rounded-full group-hover:bg-yellow-400 transition-colors mt-2 flex-shrink-0"></div>
                     <span className="flex-1 leading-relaxed">{suggestion}</span>
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MessageCircle className="w-3 h-3 text-purple-300 mt-1" />
+                      <MessageSquare className="w-3 h-3 text-purple-300 mt-1" />
                     </div>
                   </button>
                 ))}
@@ -765,7 +674,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
           {currentSuggestions.length === 0 && (
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-purple-300 text-sm">
-                <Lightbulb className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>Start a conversation to see helpful suggestions!</p>
               </div>
             </div>

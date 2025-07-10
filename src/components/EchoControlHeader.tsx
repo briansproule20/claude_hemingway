@@ -8,7 +8,6 @@ const EchoControlHeader: React.FC = () => {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseAmount, setPurchaseAmount] = useState(100);
   const [showCreditInfo, setShowCreditInfo] = useState(false);
-  const [accountInfo, setAccountInfo] = useState<any>(null);
   const creditInfoRef = useRef<HTMLDivElement>(null);
 
   // Check if we have placeholder/default values or session issues
@@ -22,17 +21,6 @@ const EchoControlHeader: React.FC = () => {
     console.log('EchoControlHeader - Full Echo context:', { user, balance, error });
     console.log('EchoControlHeader - User data:', user);
     console.log('EchoControlHeader - Balance data:', balance);
-    console.log('🔍 === CHECKING ALL SESSIONSTORE KEYS ===');
-    
-    // Check ALL sessionStorage keys to see what's actually there
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key) {
-        console.log(`sessionStorage[${key}]:`, sessionStorage.getItem(key));
-      }
-    }
-    
-    console.log('🔍 === END SESSION STORAGE DUMP ===');
   }, [user, balance, error]);
 
   // Check if credits are low (less than 10)
@@ -53,87 +41,6 @@ const EchoControlHeader: React.FC = () => {
     }
   }, [showCreditInfo]);
 
-  // Try to fetch REAL Merit account info when authenticated
-  useEffect(() => {
-    if (user) {
-      console.log('🚀 User detected, using Echo SDK user data:', user);
-      
-      // Check if Echo SDK returned placeholder data
-      const hasPlaceholderData = user.id === 'unknown' || user.email === '' || user.name === 'User';
-      
-      if (hasPlaceholderData) {
-        console.log('🔧 Echo SDK returned placeholder data, extracting from JWT token...');
-        
-        // Extract real user info from JWT
-        try {
-          const instanceId = process.env.REACT_APP_ECHO_APP_ID;
-          const oidcKey = `oidc.user:https://echo.merit.systems:${instanceId}`;
-          const oidcData = sessionStorage.getItem(oidcKey);
-          
-          if (oidcData) {
-            const parsed = JSON.parse(oidcData);
-            const token = parsed.access_token;
-            
-            if (token) {
-              // Decode JWT token
-              const parts = token.split('.');
-              if (parts.length === 3) {
-                const payload = JSON.parse(atob(parts[1]));
-                console.log('🔓 JWT Payload:', payload);
-                
-                // Use what we actually have - make it user-friendly
-                const realUserInfo = {
-                  id: payload.user_id || payload.sub || 'unknown',
-                  email: '', // Echo doesn't provide this
-                  name: `Echo User`, // Keep it simple
-                  picture: '',
-                  organization: 'Merit Systems',
-                  source: 'jwt-token',
-                  app_id: payload.app_id,
-                  scope: payload.scope,
-                  expires_at: payload.exp,
-                  issued_at: payload.iat,
-                  // Add user-friendly display info
-                  displayName: `Echo User (${payload.user_id ? payload.user_id.slice(0, 8) : 'unknown'}...)`,
-                  status: 'Authenticated ✓'
-                };
-                
-                console.log('✅ Extracted real user info from JWT:', realUserInfo);
-                setAccountInfo(realUserInfo);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error extracting user info from JWT:', error);
-        }
-      } else {
-        // Use Echo SDK data if it's valid
-        setAccountInfo({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          picture: user.picture,
-          organization: 'Merit Systems',
-          source: 'echo-sdk'
-        });
-      }
-    }
-  }, [user]);
-
-  const fetchRealMeritAccount = async () => {
-    console.log('📋 Using available Echo SDK user data:', user);
-    if (user) {
-      setAccountInfo({
-        id: user.id !== 'unknown' ? user.id : 'Loading...',
-        email: user.email || undefined,
-        name: user.name !== 'User' ? user.name : 'Echo User',
-        picture: user.picture || undefined,
-        organization: 'Merit Systems',
-        source: 'echo-sdk'
-      });
-    }
-  };
-
   // Handle session expiration
   useEffect(() => {
     if (hasSessionExpired) {
@@ -141,8 +48,6 @@ const EchoControlHeader: React.FC = () => {
       // Don't auto-sign out, let the user decide when to re-authenticate
     }
   }, [hasSessionExpired]);
-
-
 
   const handlePurchaseComplete = (newBalance: any) => {
     console.log('Purchase completed, new balance:', newBalance);
@@ -254,7 +159,7 @@ const EchoControlHeader: React.FC = () => {
              
              console.log('🔓 Account info from JWT:', jwtAccountInfo);
              console.log('🔓 Setting account info state...');
-             setAccountInfo(jwtAccountInfo);
+             // setAccountInfo(jwtAccountInfo); // This line is removed as per the edit hint
              
              // Force a re-render by logging the state change
              setTimeout(() => {
@@ -273,12 +178,12 @@ const EchoControlHeader: React.FC = () => {
      
      // This function now just calls the main fetch function
      // since we're no longer trying to call external APIs
-     await fetchRealMeritAccount();
+     // await fetchRealMeritAccount(); // This line is removed as per the edit hint
    };
 
   const fetchAccountInfo = async () => {
     console.log('🔍 Refreshing user account info...');
-    fetchRealMeritAccount();
+    // fetchRealMeritAccount(); // This line is removed as per the edit hint
   };
 
   // Fetch user profile from Echo API
@@ -448,14 +353,14 @@ const EchoControlHeader: React.FC = () => {
                     </span>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-medium">
-                    {accountInfo?.organization || 'Echo Account'}
-                  </p>
+                                  <div>
+                    <p className="text-sm font-medium">
+                      Echo Account
+                    </p>
                   <p className="text-xs opacity-80">
-                    {accountInfo?.id && accountInfo.id !== 'unknown' ? `ID: ${accountInfo.id.slice(0, 8)}...` :
-                     accountInfo?.email && accountInfo.email !== '' ? `Email: ${accountInfo.email.slice(0, 10)}...` :
-                     accountInfo?.name && accountInfo.name !== 'User' ? `Name: ${accountInfo.name}` :
+                    {user?.id && user.id !== 'unknown' ? `ID: ${user.id.slice(0, 8)}...` :
+                     user?.email && user.email !== '' ? `Email: ${user.email.slice(0, 10)}...` :
+                     user?.name && user.name !== 'User' ? `Name: ${user.name}` :
                      user?.id && user.id !== 'unknown' ? `ID: ${user.id.slice(0, 8)}...` : 
                      user?.email && user.email !== '' ? `Email: ${user.email.slice(0, 10)}...` : 
                      user?.name && user.name !== 'User' ? `Name: ${user.name}` :
@@ -575,17 +480,12 @@ const EchoControlHeader: React.FC = () => {
           <h4 className="font-semibold text-gray-900 mb-2">Echo Account Information</h4>
           <div className="text-sm text-gray-600 space-y-2">
             <div className="bg-blue-50 p-2 rounded">
-              <p><strong>Account ID:</strong> {accountInfo?.id || (user?.id && user.id !== 'unknown' ? user.id : 'Authenticating...')}</p>
-              <p><strong>Email:</strong> {accountInfo?.email || (user?.email && user.email !== '' ? user.email : 'Not available')}</p>
-              {(accountInfo?.name || (user?.name && user.name !== 'User')) && (
-                <p><strong>Name:</strong> {accountInfo?.name || user?.name}</p>
+              <p><strong>Account ID:</strong> {user?.id || 'Authenticating...'}</p>
+              <p><strong>Email:</strong> {user?.email || 'Not available'}</p>
+              {(user?.name || (user?.name && user.name !== 'User')) && (
+                <p><strong>Name:</strong> {user?.name}</p>
               )}
-              {accountInfo?.organization && (
-                <p><strong>Organization:</strong> {accountInfo.organization}</p>
-              )}
-              {accountInfo?.plan && (
-                <p><strong>Plan:</strong> {accountInfo.plan}</p>
-              )}
+                             <p><strong>Organization:</strong> Merit Systems</p>
             </div>
             <div className="border-t pt-2">
               <p><strong>Current Balance:</strong> {balance?.credits ?? 0} credits</p>
