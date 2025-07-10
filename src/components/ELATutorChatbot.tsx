@@ -15,7 +15,12 @@ import {
   Sparkles, 
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  FileText,
+  X,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 // Type definitions
@@ -30,6 +35,15 @@ interface Topic {
   id: string;
   name: string;
   icon: React.ComponentType<{ className?: string }>;
+}
+
+interface UploadedDocument {
+  id: string;
+  name: string;
+  content: string;
+  size: number;
+  type: string;
+  uploadedAt: Date;
 }
 
 // Famous author last names for random selection
@@ -196,6 +210,15 @@ const ELATutorChatbot: React.FC = () => {
   // Track repeated dishonesty attempts
   const [dishonestyCount, setDishonestyCount] = useState<number>(0);
   const [showDishonestyModal, setShowDishonestyModal] = useState<boolean>(false);
+  
+  // Document upload state
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+
 
   const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -634,6 +657,139 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
     setSelectedTopic('');
     setDishonestyCount(0);
     setShowDishonestyModal(false);
+    setUploadedDocuments([]);
+    setUploadError('');
+  };
+
+  // Document upload functions
+  const handleFileUpload = async (files: FileList | null): Promise<void> => {
+    if (!files || files.length === 0) return;
+    
+    setIsUploading(true);
+    setUploadError('');
+    
+    try {
+      const newDocuments: UploadedDocument[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Check file type
+        if (!file.type.includes('text') && !file.name.endsWith('.txt') && !file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
+          throw new Error(`Unsupported file type: ${file.name}. Please upload text files (.txt, .doc, .docx) only.`);
+        }
+        
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`File too large: ${file.name}. Maximum size is 5MB.`);
+        }
+        
+        const content = await readFileContent(file);
+        const document: UploadedDocument = {
+          id: Date.now().toString() + i,
+          name: file.name,
+          content: content,
+          size: file.size,
+          type: file.type,
+          uploadedAt: new Date()
+        };
+        
+        newDocuments.push(document);
+      }
+      
+      setUploadedDocuments(prev => [...prev, ...newDocuments]);
+      
+      // Auto-generate revision feedback for the first document
+      if (newDocuments.length > 0) {
+        await generateRevisionFeedback(newDocuments[0]);
+      }
+      
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload file');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        resolve(content);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
+  const generateRevisionFeedback = async (document: UploadedDocument): Promise<void> => {
+    const feedbackPrompt = `I've uploaded a document titled "${document.name}" for revision feedback. Please analyze this writing and provide constructive feedback focusing on AREAS FOR REVISION rather than individual mistakes. Consider:
+
+1. **Structure & Organization**: How well is the piece organized? Are there logical flow issues?
+2. **Content Development**: Are ideas fully developed and supported?
+3. **Clarity & Coherence**: Is the writing clear and easy to follow?
+4. **Style & Voice**: Does the writing style match the intended audience and purpose?
+5. **Overall Impact**: How effective is the piece in achieving its goals?
+
+Please provide specific, actionable suggestions for improvement. Here's the document content:
+
+${document.content.substring(0, 3000)}${document.content.length > 3000 ? '...' : ''}`;
+
+    // Add the feedback request to the chat
+    const userMessage: Message = {
+      id: messages.length + 1,
+      type: 'user',
+      content: feedbackPrompt,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    
+    // Process the feedback request
+    setIsTyping(true);
+    try {
+      const response = await callEchoLLM(feedbackPrompt);
+      const botMessage: Message = {
+        id: messages.length + 2,
+        type: 'bot',
+        content: response,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: messages.length + 2,
+        type: 'bot',
+        content: 'I apologize, but I encountered an error while analyzing your document. Please try again or ask me a specific question about your writing.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+      scrollToBottom();
+    }
+  };
+
+  const removeDocument = (documentId: string): void => {
+    setUploadedDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
+  const handleDragOver = (e: React.DragEvent): void => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent): void => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleFileUpload(e.dataTransfer.files);
   };
 
   const getUIText = () => {
@@ -679,7 +835,20 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
         authError: '🔐 **Authentication Error**: Your session has expired. Please sign out and sign in again.',
         paymentRequired: '💳 **Payment Required**: You\'re out of Echo credits! Please purchase more credits to continue using AI features.',
         rateLimited: '⏰ **Rate Limited**: You\'re making requests too quickly. Please wait a moment and try again.',
-        connectionError: '🚨 **Connection Error**: Failed to connect to Echo AI. Please check your internet connection and try again.'
+        connectionError: '🚨 **Connection Error**: Failed to connect to Echo AI. Please check your internet connection and try again.',
+        documentUpload: {
+          title: '📄 Document Upload',
+          subtitle: 'Upload your writing for revision feedback',
+          dragDropText: 'Drag and drop your document here, or click to browse',
+          uploadButton: 'Upload Document',
+          supportedFormats: 'Supported formats: .txt, .doc, .docx (max 5MB)',
+          uploading: 'Uploading...',
+          uploadSuccess: 'Document uploaded successfully!',
+          uploadError: 'Upload failed',
+          removeDocument: 'Remove',
+          analyzeDocument: 'Analyze for Revision',
+          noDocuments: 'No documents uploaded yet'
+        }
       },
       es: {
         tutorSubtitle: 'Tutor de ELA',
@@ -720,7 +889,20 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
         authError: '🔐 **Error de Autenticación**: Tu sesión ha expirado. Por favor cierra sesión y vuelve a iniciar sesión.',
         paymentRequired: '💳 **Pago Requerido**: ¡Se te acabaron los créditos de Echo! Por favor compra más créditos para continuar usando las funciones de IA.',
         rateLimited: '⏰ **Límite de Velocidad**: Estás haciendo solicitudes muy rápido. Por favor espera un momento y vuelve a intentar.',
-        connectionError: '🚨 **Error de Conexión**: Falló la conexión con Echo AI. Por favor verifica tu conexión a internet y vuelve a intentar.'
+        connectionError: '🚨 **Error de Conexión**: Falló la conexión con Echo AI. Por favor verifica tu conexión a internet y vuelve a intentar.',
+        documentUpload: {
+          title: '📄 Subir Documento',
+          subtitle: 'Sube tu escritura para recibir retroalimentación de revisión',
+          dragDropText: 'Arrastra y suelta tu documento aquí, o haz clic para explorar',
+          uploadButton: 'Subir Documento',
+          supportedFormats: 'Formatos soportados: .txt, .doc, .docx (máx 5MB)',
+          uploading: 'Subiendo...',
+          uploadSuccess: '¡Documento subido exitosamente!',
+          uploadError: 'Error al subir',
+          removeDocument: 'Eliminar',
+          analyzeDocument: 'Analizar para Revisión',
+          noDocuments: 'Aún no se han subido documentos'
+        }
       },
       ht: {
         tutorSubtitle: 'Pwofesè ELA',
@@ -761,7 +943,20 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
         authError: '🔐 **Erè Otentifikasyon**: Sesyon ou an ekspire. Tanpri dekonekte ak konekte ankò.',
         paymentRequired: '💳 **Peman Obligatwa**: Ou pa gen kredi Echo ankò! Tanpri achte plis kredi pou kontinye itilize fonksyon AI yo.',
         rateLimited: '⏰ **Limit Vitès**: W ap fè demann yo twò vit. Tanpri tann yon moman ak eseye ankò.',
-        connectionError: '🚨 **Erè Koneksyon**: Echèk koneksyon ak Echo AI. Tanpri verifye koneksyon entènèt ou ak eseye ankò.'
+        connectionError: '🚨 **Erè Koneksyon**: Echèk koneksyon ak Echo AI. Tanpri verifye koneksyon entènèt ou ak eseye ankò.',
+        documentUpload: {
+          title: '📄 Telechaje Dokiman',
+          subtitle: 'Telechaje ekriti w pou resevwa fidbak pou revizyon',
+          dragDropText: 'Trennen ak lage dokiman w isit la, oswa klike pou navige',
+          uploadButton: 'Telechaje Dokiman',
+          supportedFormats: 'Fòma sipòte: .txt, .doc, .docx (maks 5MB)',
+          uploading: 'Ap telechaje...',
+          uploadSuccess: 'Dokiman telechaje avèk siksè!',
+          uploadError: 'Echèk telechaj',
+          removeDocument: 'Retire',
+          analyzeDocument: 'Analize pou Revizyon',
+          noDocuments: 'Pa gen dokiman telechaje ankò'
+        }
       }
     };
 
@@ -772,7 +967,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
   const uiText = getUIText();
 
   return (
-    <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto">
       {/* Header */}
       <div className="bg-black/20 backdrop-blur-md border-b border-white/10 p-4 flex justify-between items-center">
         <div className="flex items-center space-x-3">
@@ -855,11 +1050,11 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
       </div>
 
       {/* Main Content Area - Split Layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-96">
         {/* Chat Area - Left Side */}
         <div className="flex-1 flex flex-col">
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="h-[600px] overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -869,8 +1064,15 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
               className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                 message.type === 'user'
                   ? 'bg-blue-600 text-white'
-                  : 'bg-white/10 backdrop-blur-md text-white'
+                  : 'bg-white/10 backdrop-blur-md text-white select-none'
               }`}
+              style={{
+                userSelect: message.type === 'bot' ? 'none' : 'auto',
+                WebkitUserSelect: message.type === 'bot' ? 'none' : 'auto',
+                MozUserSelect: message.type === 'bot' ? 'none' : 'auto',
+                msUserSelect: message.type === 'bot' ? 'none' : undefined
+              }}
+              onContextMenu={message.type === 'bot' ? (e) => e.preventDefault() : undefined}
             >
               <p className="whitespace-pre-wrap">{message.content}</p>
               <p className="text-xs mt-1 opacity-70">
@@ -958,6 +1160,107 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>{uiText.startConversation}</p>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Document Upload Section */}
+      <div className="bg-black/20 backdrop-blur-md border-t border-white/10 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-5 h-5 text-purple-400" />
+            <h3 className="text-lg font-semibold text-white">{uiText.documentUpload.title}</h3>
+          </div>
+          <p className="text-sm text-purple-200 mb-4">{uiText.documentUpload.subtitle}</p>
+          
+          {/* Upload Area */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 ${
+              isDragOver
+                ? 'border-purple-400 bg-purple-900/20'
+                : 'border-white/20 hover:border-purple-400/50'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.doc,.docx"
+              onChange={(e) => handleFileUpload(e.target.files)}
+              className="hidden"
+            />
+            
+            {isUploading ? (
+              <div className="flex flex-col items-center">
+                <Loader2 className="w-8 h-8 text-purple-400 animate-spin mb-2" />
+                <p className="text-purple-200">{uiText.documentUpload.uploading}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <Upload className="w-8 h-8 text-purple-400 mb-2" />
+                <p className="text-white font-medium mb-1">{uiText.documentUpload.dragDropText}</p>
+                <p className="text-xs text-purple-300">{uiText.documentUpload.supportedFormats}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Error Message */}
+          {uploadError && (
+            <div className="mt-3 p-3 bg-red-900/20 border border-red-400/30 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <p className="text-red-200 text-sm">{uploadError}</p>
+            </div>
+          )}
+
+          {/* Uploaded Documents */}
+          {uploadedDocuments.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-white mb-2">Uploaded Documents:</h4>
+              <div className="space-y-2">
+                {uploadedDocuments.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-purple-400" />
+                      <div>
+                        <p className="text-white text-sm font-medium">{doc.name}</p>
+                        <p className="text-xs text-purple-300">
+                          {(doc.size / 1024).toFixed(1)} KB • {doc.uploadedAt.toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => generateRevisionFeedback(doc)}
+                        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-md transition-colors"
+                      >
+                        {uiText.documentUpload.analyzeDocument}
+                      </button>
+                      <button
+                        onClick={() => removeDocument(doc.id)}
+                        className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No Documents Message */}
+          {uploadedDocuments.length === 0 && !isUploading && (
+            <div className="mt-4 text-center text-purple-300 text-sm">
+              <FileText className="w-6 h-6 mx-auto mb-2 opacity-50" />
+              <p>{uiText.documentUpload.noDocuments}</p>
             </div>
           )}
         </div>
