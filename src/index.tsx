@@ -16,6 +16,9 @@ const echoConfig = {
   scope: 'llm:invoke offline_access'
 };
 
+console.log('🔧 Echo config:', echoConfig);
+console.log('🔧 Instance ID:', process.env.REACT_APP_ECHO_APP_ID);
+
 root.render(
   <React.StrictMode>
     <EchoProvider config={echoConfig}>

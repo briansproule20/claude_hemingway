@@ -5,7 +5,9 @@ An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 S
 ## Features
 
 - **AI-Powered Responses**: Uses Claude 3.5 Sonnet for intelligent, contextual responses
-- **Real-time API Integration**: Direct integration with Anthropic's Claude API
+- **Echo Authentication**: Secure OAuth2 + PKCE authentication via Echo platform
+- **Credit Management**: Real-time credit balance display with purchase options
+- **Platform Integration**: Direct links to Merit Systems and Echo dashboard
 - **Academic Integrity Protection**: Built-in safeguards against writing requests
 - **Interactive Chat Interface**: Real-time conversation with an AI tutor
 - **Topic Shortcuts**: Quick access to different ELA subjects
@@ -15,6 +17,16 @@ An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 S
 - **Modern UI**: Beautiful gradient design with smooth animations
 - **Random Author Names**: Each session features a different famous author's name
 - **Fallback System**: Educational resources when API is unavailable
+
+### Echo Control Header Features
+
+- **Real-time Credit Balance**: Shows current credits with refresh capability
+- **Low Credit Warnings**: Visual indicators when credits are low or critical
+- **Purchase Integration**: Built-in credit purchase with Echo Token Purchase component
+- **Payment Links**: Direct payment link creation for credit purchases
+- **Platform Access**: Quick links to Merit Systems and Echo platform
+- **Credit Information**: Detailed tooltip with usage information and warnings
+- **Responsive Design**: Mobile-friendly layout with adaptive text and spacing
 
 ## Topics Covered
 
