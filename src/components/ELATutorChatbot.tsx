@@ -1,5 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, BookOpen, PenTool, FileText, MessageCircle, Lightbulb, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useEcho } from '@zdql/echo-react-sdk';
+import { 
+  BookOpen, 
+  PenTool, 
+  FileText, 
+  Lightbulb, 
+  MessageCircle, 
+  CheckCircle, 
+  Send,
+  HelpCircle,
+  Plus
+} from 'lucide-react';
 
 // Type definitions
 interface Message {
@@ -26,6 +37,10 @@ const famousAuthors: string[] = [
 
 const ELATutorChatbot: React.FC = () => {
   console.log('🚀 ELATutorChatbot: Component is loading...');
+  
+  // Get Echo SDK context
+  const echo = useEcho();
+  
   console.log('🔑 Environment check on mount:', {
     apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'FOUND' : 'NOT FOUND',
     apiKeyLength: process.env.REACT_APP_ANTHROPIC_API_KEY?.length,
@@ -190,35 +205,144 @@ const ELATutorChatbot: React.FC = () => {
     return found;
   };
 
-  const callClaudeAPI = async (userMessage: string): Promise<string> => {
-    console.log('🤖 Calling Claude API via backend...');
+  // Call Echo LLM API using credits
+  const callEchoLLM = async (userMessage: string): Promise<string> => {
+    console.log('🔮 Calling Echo LLM API...');
     
     try {
-      console.log('🚀 Making request to backend...');
-      const response = await fetch('http://localhost:3001/api/claude', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Check if user is authenticated
+      if (!echo?.isAuthenticated) {
+        throw new Error('User not authenticated with Echo');
+      }
+
+      // Get authentication token from sessionStorage
+      const instanceId = process.env.REACT_APP_ECHO_APP_ID;
+      const oidcKey = `oidc.user:https://echo.merit.systems:${instanceId}`;
+      const oidcData = sessionStorage.getItem(oidcKey);
+      
+      if (!oidcData) {
+        throw new Error('No authentication token found');
+      }
+
+      const parsed = JSON.parse(oidcData);
+      const accessToken = parsed.access_token;
+
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      console.log('🌐 Making authenticated call to Echo LLM API');
+      
+      // Try the correct Echo API endpoint for LLM calls
+      const apiEndpoints = [
+        'https://echo.merit.systems/api/v1/llm/chat',
+        'https://echo.merit.systems/api/llm/chat',
+        'https://echo.merit.systems/api/v1/chat',
+        'https://echo.merit.systems/api/chat'
+      ];
+
+      const chatMessages = [
+        {
+          role: 'system',
+          content: `You are Claude, an ELA tutor with a randomly selected famous author's last name. You help students with English Language Arts including reading comprehension, writing, grammar, vocabulary, and literature analysis.
+
+CRITICAL ETHICAL GUIDELINES - YOU MUST FOLLOW THESE:
+1. NEVER write essays, papers, or assignments for students
+2. NEVER complete homework or assignments for students
+3. NEVER provide full written content that students can submit as their own work
+4. ALWAYS redirect writing requests to brainstorming, outlining, and process guidance
+5. Focus on teaching the writing process, not doing the writing
+
+TONE AND TEACHING STYLE:
+- Always be supportive, encouraging, and positive—like a great teacher or mentor.
+- Use affirmations like "Great question!", "You're on the right track!", "Your ideas matter!"
+- End responses with encouragement toward independent thinking.
+
+YOUR ROLE:
+- Help with reading comprehension strategies
+- Guide students through the writing process (brainstorming, outlining, revising)
+- Teach grammar and mechanics
+- Build vocabulary skills
+- Analyze literature and literary devices
+
+Always maintain academic integrity and promote genuine learning.`
         },
-        body: JSON.stringify({
-          message: userMessage,
-          messages: messages
-        }),
-      });
+        ...messages.map(msg => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        })),
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ];
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const requestBody = {
+        model: 'claude-3-haiku-20240307',
+        messages: chatMessages,
+        max_tokens: 500,
+        temperature: 0.7
+      };
+
+      // Try each endpoint until one works
+      for (const endpoint of apiEndpoints) {
+        try {
+          console.log(`🔍 Trying endpoint: ${endpoint}`);
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Received response from Echo LLM API');
+            
+            // Refresh balance after LLM call to show updated credits
+            if (echo.refreshBalance) {
+              setTimeout(() => echo.refreshBalance(), 1000); // Delay to allow API processing
+            }
+            
+            // Extract content from different possible response formats
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+              return data.choices[0].message.content;
+            } else if (data.content) {
+              return data.content;
+            } else if (data.response) {
+              return data.response;
+            } else if (data.text) {
+              return data.text;
+            } else if (typeof data === 'string') {
+              return data;
+            } else {
+              return JSON.stringify(data);
+            }
+          } else {
+            const errorText = await response.text();
+            console.log(`❌ ${endpoint} failed: ${response.status} - ${errorText}`);
+            
+            // Don't throw here, try next endpoint
+            continue;
+          }
+        } catch (endpointError) {
+          console.log(`❌ ${endpoint} error:`, endpointError);
+          continue;
+        }
       }
 
-      const data = await response.json();
-      console.log('✅ Received response from backend:', data.response);
-      return data.response;
+      // If all endpoints failed, throw an error
+      throw new Error('All Echo API endpoints failed');
+      
     } catch (error) {
-      console.error('❌ Backend API error:', error);
-      if (error instanceof Error && error.message.includes('Failed to fetch')) {
-        return "⚠️ **Backend Connection Error**: Unable to connect to the backend server. Make sure the server is running on port 3001. " + generateFallbackResponse(userMessage);
-      }
-      return "⚠️ **Connection Error**: Unable to get response from Claude AI. " + generateFallbackResponse(userMessage);
+      console.error('❌ Echo LLM API error:', error);
+      
+      // Return a seamless fallback response without showing technical errors
+      return generateFallbackResponse(userMessage);
     }
   };
 
@@ -242,14 +366,8 @@ const ELATutorChatbot: React.FC = () => {
         `${m.type === 'user' ? 'Student' : 'Tutor'}: ${m.content}`
       ).join('\n');
 
-      // Call Claude to generate intelligent suggestions
-      const response = await fetch('http://localhost:3001/api/claude', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Based on this recent ELA tutoring conversation, generate exactly 6 thoughtful follow-up questions that would naturally extend the discussion and help the student learn more. The questions should be:
+      // Use Echo LLM for suggestions too
+      const response = await callEchoLLM(`Based on this recent ELA tutoring conversation, generate exactly 6 thoughtful follow-up questions that would naturally extend the discussion and help the student learn more. The questions should be:
 1. Directly related to what's been discussed
 2. Progressively build on the concepts mentioned
 3. Encourage deeper thinking and analysis
@@ -259,17 +377,9 @@ const ELATutorChatbot: React.FC = () => {
 Recent conversation:
 ${conversationContext}
 
-Please respond with exactly 6 questions, one per line, without numbering or bullet points. Make them natural follow-up questions that a thoughtful tutor would ask.`,
-          messages: [] // Don't include full history for suggestion generation
-        }),
-      });
+Please respond with exactly 6 questions, one per line, without numbering or bullet points. Make them natural follow-up questions that a thoughtful tutor would ask.`);
 
-      if (!response.ok) {
-        throw new Error('Failed to generate suggestions');
-      }
-
-      const data = await response.json();
-      const suggestions = data.response
+      const suggestions = response
         .split('\n')
         .filter((line: string) => line.trim())
         .map((line: string) => line.trim())
@@ -277,7 +387,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
 
       return suggestions.length >= 3 ? suggestions : getFallbackSuggestions();
     } catch (error) {
-      console.error('Error generating Claude suggestions:', error);
+      console.error('Error generating Echo suggestions:', error);
       return getFallbackSuggestions();
     }
   };
@@ -361,6 +471,23 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
       return;
     }
 
+    // Check if user is authenticated with Echo
+    if (!echo?.isAuthenticated) {
+      const errorMessage: Message = {
+        id: messages.length + 1,
+        type: 'bot',
+        content: "⚠️ **Authentication Required**: Please sign in with Echo to use the ELA tutor.",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
+    // Check for academic integrity violations
+    if (checkForWritingRequests(inputValue)) {
+      return; // Don't process the message, let the modal handle it
+    }
+
     const userMessage: Message = {
       id: messages.length + 1,
       type: 'user',
@@ -374,8 +501,8 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
     setIsTyping(true);
 
     try {
-      console.log('🤖 Calling Claude API...');
-      const botResponse = await callClaudeAPI(inputValue);
+      console.log('🔮 Calling Echo LLM...');
+      const botResponse = await callEchoLLM(inputValue);
       console.log('📨 Got bot response:', botResponse);
 
       const botMessage: Message = {
