@@ -343,28 +343,22 @@ const EchoControlHeader: React.FC = () => {
                 {user?.picture ? (
                   <img
                     src={user.picture}
-                    alt="Echo Account"
+                    alt={user.name || 'Echo Account'}
                     className="w-8 h-8 rounded-full border-2 border-white/20"
                   />
                 ) : (
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
                     <span className="text-sm font-bold text-white">
-                      E
+                      {user?.name ? user.name.charAt(0).toUpperCase() : 'E'}
                     </span>
                   </div>
                 )}
-                                  <div>
-                    <p className="text-sm font-medium">
-                      Echo Account
-                    </p>
+                <div>
+                  <p className="text-sm font-medium">
+                    {user?.name || 'Echo Account'}
+                  </p>
                   <p className="text-xs opacity-80">
-                    {user?.id && user.id !== 'unknown' ? `ID: ${user.id.slice(0, 8)}...` :
-                     user?.email && user.email !== '' ? `Email: ${user.email.slice(0, 10)}...` :
-                     user?.name && user.name !== 'User' ? `Name: ${user.name}` :
-                     user?.id && user.id !== 'unknown' ? `ID: ${user.id.slice(0, 8)}...` : 
-                     user?.email && user.email !== '' ? `Email: ${user.email.slice(0, 10)}...` : 
-                     user?.name && user.name !== 'User' ? `Name: ${user.name}` :
-                     'Authenticating...'}
+                    {user?.email || 'Loading account...'}
                   </p>
                 </div>
               </div>
@@ -480,12 +474,9 @@ const EchoControlHeader: React.FC = () => {
           <h4 className="font-semibold text-gray-900 mb-2">Echo Account Information</h4>
           <div className="text-sm text-gray-600 space-y-2">
             <div className="bg-blue-50 p-2 rounded">
-              <p><strong>Account ID:</strong> {user?.id || 'Authenticating...'}</p>
+              <p><strong>Name:</strong> {user?.name || 'Not available'}</p>
               <p><strong>Email:</strong> {user?.email || 'Not available'}</p>
-              {(user?.name || (user?.name && user.name !== 'User')) && (
-                <p><strong>Name:</strong> {user?.name}</p>
-              )}
-                             <p><strong>Organization:</strong> Merit Systems</p>
+              <p><strong>Account ID:</strong> {user?.id || 'Authenticating...'}</p>
             </div>
             <div className="border-t pt-2">
               <p><strong>Current Balance:</strong> {balance?.credits ?? 0} credits</p>
