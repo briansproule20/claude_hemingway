@@ -210,7 +210,7 @@ const ELATutorChatbot: React.FC = () => {
     setMessages(initialMessage(selectedAuthor));
   }, [currentLanguage, selectedAuthor]);
 
-  // Update available suggestions when conversation changes
+  // Update available suggestions when conversation or language changes
   useEffect(() => {
     const updateSuggestions = async () => {
       const newSuggestions = await generateContextualSuggestions();
@@ -218,7 +218,7 @@ const ELATutorChatbot: React.FC = () => {
       setLastUpdateTime(Date.now());
     };
     updateSuggestions();
-  }, [messages]);
+  }, [messages, currentLanguage]);
 
   // No auto-scroll - suggestions only change when conversation progresses
 
@@ -227,16 +227,45 @@ const ELATutorChatbot: React.FC = () => {
     return availableSuggestions.slice(0, 6);
   };
 
-  const topics: Topic[] = [
-    { id: 'reading', name: 'Reading Comprehension', icon: BookOpen },
-    { id: 'writing', name: 'Writing Skills', icon: Users },
-    { id: 'grammar', name: 'Grammar & Mechanics', icon: GraduationCap },
-    { id: 'vocabulary', name: 'Vocabulary Building', icon: Sparkles },
-    { id: 'literature', name: 'Literature Analysis', icon: MessageSquare },
-    { id: 'research', name: 'Research Skills', icon: ChevronDown },
-    { id: 'testprep', name: 'Test Prep', icon: ChevronUp },
-    { id: 'speaking', name: 'Public Speaking', icon: RefreshCw },
-  ];
+  const getTopics = (): Topic[] => {
+    const lang = getCurrentLanguage();
+    
+    switch (lang.code) {
+      case 'es':
+        return [
+          { id: 'reading', name: 'Comprensión de Lectura', icon: BookOpen },
+          { id: 'writing', name: 'Habilidades de Escritura', icon: Users },
+          { id: 'grammar', name: 'Gramática y Mecánica', icon: GraduationCap },
+          { id: 'vocabulary', name: 'Construcción de Vocabulario', icon: Sparkles },
+          { id: 'literature', name: 'Análisis Literario', icon: MessageSquare },
+          { id: 'research', name: 'Habilidades de Investigación', icon: ChevronDown },
+          { id: 'testprep', name: 'Preparación para Exámenes', icon: ChevronUp },
+          { id: 'speaking', name: 'Oratoria', icon: RefreshCw },
+        ];
+      case 'ht':
+        return [
+          { id: 'reading', name: 'Konpreyansyon Lekti', icon: BookOpen },
+          { id: 'writing', name: 'Kapasite Ekriti', icon: Users },
+          { id: 'grammar', name: 'Gramè ak Mekanik', icon: GraduationCap },
+          { id: 'vocabulary', name: 'Konstwi Vokabilè', icon: Sparkles },
+          { id: 'literature', name: 'Analiz Literè', icon: MessageSquare },
+          { id: 'research', name: 'Kapasite Rechèch', icon: ChevronDown },
+          { id: 'testprep', name: 'Preparasyon pou Egzamen', icon: ChevronUp },
+          { id: 'speaking', name: 'Kominote nan Piblik', icon: RefreshCw },
+        ];
+      default:
+        return [
+          { id: 'reading', name: 'Reading Comprehension', icon: BookOpen },
+          { id: 'writing', name: 'Writing Skills', icon: Users },
+          { id: 'grammar', name: 'Grammar & Mechanics', icon: GraduationCap },
+          { id: 'vocabulary', name: 'Vocabulary Building', icon: Sparkles },
+          { id: 'literature', name: 'Literature Analysis', icon: MessageSquare },
+          { id: 'research', name: 'Research Skills', icon: ChevronDown },
+          { id: 'testprep', name: 'Test Prep', icon: ChevronUp },
+          { id: 'speaking', name: 'Public Speaking', icon: RefreshCw },
+        ];
+    }
+  };
 
   // Check for writing requests (academic integrity protection)
   const checkForWritingRequests = (message: string): boolean => {
@@ -254,18 +283,20 @@ const ELATutorChatbot: React.FC = () => {
     console.log('🔮 Calling Echo LLM using AI SDK...');
     
     try {
+      const uiText = getUIText();
+      
       // Check if user is authenticated with Echo
       if (!isAuthenticated) {
-        return "❌ **Authentication Error**: You need to be signed in to Echo to use AI features. Please sign in and try again.";
+        return uiText.authRequired;
       }
 
       // Check if user has credits
       if (balance && balance.credits <= 0) {
-        return "💳 **No Credits Available**: You're out of Echo credits! Please purchase more credits to continue using AI features. You can buy credits from the header menu.";
+        return uiText.creditsLow;
       }
 
       if (!token) {
-        return "🔐 **Token Missing**: Authentication token not found. Please sign out and sign in again.";
+        return uiText.tokenMissing;
       }
 
       console.log('🌐 Using AI SDK with Echo router...');
@@ -296,32 +327,57 @@ Respond helpfully and educationally to assist the student with their ELA learnin
     } catch (error) {
       console.error('❌ Echo LLM Error:', error);
       
+      const uiText = getUIText();
+      
       // Handle specific error types
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-          return "🔐 **Authentication Error**: Your session has expired. Please sign out and sign in again.";
+          return uiText.authError;
         } else if (error.message.includes('402') || error.message.includes('Payment')) {
-          return "💳 **Payment Required**: You're out of Echo credits! Please purchase more credits to continue using AI features.";
+          return uiText.paymentRequired;
         } else if (error.message.includes('429') || error.message.includes('Rate')) {
-          return "⏰ **Rate Limited**: You're making requests too quickly. Please wait a moment and try again.";
+          return uiText.rateLimited;
         }
       }
       
-      return "🚨 **Connection Error**: Failed to connect to Echo AI. Please check your internet connection and try again.";
+      return uiText.connectionError;
     }
   };
 
   const generateContextualSuggestions = async (): Promise<string[]> => {
-    // If no conversation yet, return foundational questions
+    const lang = getCurrentLanguage();
+    
+    // If no conversation yet, return foundational questions in the current language
     if (messages.length <= 1) {
-      return [
-        "What makes a story compelling to read?",
-        "How can I express my ideas more clearly?",
-        "What's the difference between formal and informal writing?",
-        "How do I find my unique writing voice?",
-        "What are some techniques for creative thinking?",
-        "How can reading improve my writing skills?"
-      ];
+      switch (lang.code) {
+        case 'es':
+          return [
+            "¿Qué hace que una historia sea atractiva de leer?",
+            "¿Cómo puedo expresar mis ideas con más claridad?",
+            "¿Cuál es la diferencia entre escritura formal e informal?",
+            "¿Cómo encuentro mi voz única de escritura?",
+            "¿Cuáles son algunas técnicas para el pensamiento creativo?",
+            "¿Cómo puede la lectura mejorar mis habilidades de escritura?"
+          ];
+        case 'ht':
+          return [
+            "Ki sa ki fè yon istwa atiran pou li?",
+            "Kijan m ka eksprime ide m yo pi klè?",
+            "Ki diferans ki genyen ant ekri fòmèl ak ekri enfòmèl?",
+            "Kijan m ka jwenn vwa ekriti inik mwen an?",
+            "Ki kèk teknik yo pou reflechi ak kreyativite?",
+            "Kijan lekti ka amelyore kapasite ekriti m yo?"
+          ];
+        default:
+          return [
+            "What makes a story compelling to read?",
+            "How can I express my ideas more clearly?",
+            "What's the difference between formal and informal writing?",
+            "How do I find my unique writing voice?",
+            "What are some techniques for creative thinking?",
+            "How can reading improve my writing skills?"
+          ];
+      }
     }
 
     try {
@@ -331,8 +387,13 @@ Respond helpfully and educationally to assist the student with their ELA learnin
         `${m.type === 'user' ? 'Student' : 'Tutor'}: ${m.content}`
       ).join('\n');
 
+      // Get language-specific instructions for AI suggestions
+      const suggestionInstructions = getSuggestionInstructions();
+
       // Use Echo LLM for suggestions too
-      const response = await callEchoLLM(`Based on this recent ELA tutoring conversation, generate exactly 6 thoughtful follow-up questions that would naturally extend the discussion and help the student learn more. The questions should be:
+      const response = await callEchoLLM(`${suggestionInstructions}
+
+Based on this recent ELA tutoring conversation, generate exactly 6 thoughtful follow-up questions that would naturally extend the discussion and help the student learn more. The questions should be:
 1. Directly related to what's been discussed
 2. Progressively build on the concepts mentioned
 3. Encourage deeper thinking and analysis
@@ -363,17 +424,50 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
     }
   };
 
+  const getSuggestionInstructions = () => {
+    const lang = getCurrentLanguage();
+    switch (lang.code) {
+      case 'es':
+        return 'Genera las preguntas de seguimiento en español. Las preguntas deben ser para un estudiante que está aprendiendo inglés como lengua extranjera.';
+      case 'ht':
+        return 'Jenere kesyon yo nan Kreyòl Ayisyen. Kesyon yo dwe pou yon elèv ki ap aprann anglè kòm dezyèm lang.';
+      default:
+        return 'Generate the follow-up questions in English for an ELA student.';
+    }
+  };
+
   const getFallbackSuggestions = (): string[] => {
-    // Simple fallback suggestions if Claude fails
-    const fallbacks = [
-      "What's the most important thing I should focus on improving?",
-      "How can I practice this skill in my daily life?",
-      "What would help me feel more confident about this topic?",
-      "What patterns do I notice in good writing?",
-      "How do different genres approach the same themes?",
-      "What makes some texts more memorable than others?"
-    ];
-    return fallbacks.slice(0, 6);
+    const lang = getCurrentLanguage();
+    
+    switch (lang.code) {
+      case 'es':
+        return [
+          "¿En qué es lo más importante que debo enfocarme para mejorar?",
+          "¿Cómo puedo practicar esta habilidad en mi vida diaria?",
+          "¿Qué me ayudaría a sentirme más seguro sobre este tema?",
+          "¿Qué patrones noto en la buena escritura?",
+          "¿Cómo diferentes géneros abordan los mismos temas?",
+          "¿Qué hace que algunos textos sean más memorables que otros?"
+        ];
+      case 'ht':
+        return [
+          "Ki bagay ki pi enpòtan pou m konsantre sou li pou m amelyore?",
+          "Kijan m ka pratike kapasite sa a nan lavi m chak jou?",
+          "Ki sa ki ta ede m santi m pi konfyan sou sijè sa a?",
+          "Ki modèl mwen remake nan bon ekri?",
+          "Ki jan diferan kalite tèks yo ap abòde menm sijè yo?",
+          "Ki sa ki fè kèk tèks yo pi fasil pou sonje pase lòt yo?"
+        ];
+      default:
+        return [
+          "What's the most important thing I should focus on improving?",
+          "How can I practice this skill in my daily life?",
+          "What would help me feel more confident about this topic?",
+          "What patterns do I notice in good writing?",
+          "How do different genres approach the same themes?",
+          "What makes some texts more memorable than others?"
+        ];
+    }
   };
 
   const generateFallbackResponse = (userMessage: string): string => {
@@ -444,10 +538,11 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
 
     // Check if user is authenticated with Echo
     if (!isAuthenticated) {
+      const uiText = getUIText();
       const errorMessage: Message = {
         id: messages.length + 1,
         type: 'bot',
-        content: "⚠️ **Authentication Required**: Please sign in with Echo to use the ELA tutor.",
+        content: uiText.authRequired,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -506,9 +601,23 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
 
   const handleTopicClick = (topicId: string): void => {
     setSelectedTopic(topicId);
-    const topic = topics.find(t => t.id === topicId);
+    const topic = getTopics().find(t => t.id === topicId);
     if (topic) {
-      const topicMessage = `I'd like to work on ${topic.name.toLowerCase()}.`;
+      const lang = getCurrentLanguage();
+      let topicMessage = '';
+      
+      switch (lang.code) {
+        case 'es':
+          topicMessage = `Me gustaría trabajar en ${topic.name.toLowerCase()}.`;
+          break;
+        case 'ht':
+          topicMessage = `Mwen ta renmen travay sou ${topic.name.toLowerCase()}.`;
+          break;
+        default:
+          topicMessage = `I'd like to work on ${topic.name.toLowerCase()}.`;
+          break;
+      }
+      
       setInputValue(topicMessage);
     }
   };
@@ -527,7 +636,140 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
     setShowDishonestyModal(false);
   };
 
+  const getUIText = () => {
+    const lang = getCurrentLanguage();
+    
+    const uiTexts = {
+      en: {
+        tutorSubtitle: 'ELA Tutor',
+        newChat: 'New Chat',
+        helpButton: '?',
+        helpTitle: 'How I Can Help You',
+        helpReading: {
+          title: '📖 Reading Comprehension',
+          description: 'Strategies for understanding texts, identifying main ideas, and analyzing content'
+        },
+        helpWriting: {
+          title: '✍️ Writing Process',
+          description: 'Brainstorming, outlining, drafting, revising, and editing your work'
+        },
+        helpGrammar: {
+          title: '📝 Grammar & Mechanics',
+          description: 'Sentence structure, punctuation, spelling, and language conventions'
+        },
+        helpLiterature: {
+          title: '💭 Literature Analysis',
+          description: 'Understanding themes, literary devices, character development, and more'
+        },
+        helpIntegrity: 'I help you learn and develop your own ideas - I don\'t write assignments for you!',
+        quickTopics: 'Quick Topics',
+        inputPlaceholder: 'Ask me about reading, writing, grammar, vocabulary, or literature...',
+        smartSuggestions: '💡 Smart Suggestions',
+        clickToExplore: '💬 Click any question to explore',
+        startConversation: 'Start a conversation to see helpful suggestions!',
+        authRequired: '⚠️ **Authentication Required**: Please sign in with Echo to use the ELA tutor.',
+        integrityTitle: 'Academic Integrity Reminder',
+        integrityMessage: 'I\'m here to help you learn, not to do your work for you! Academic integrity is important for your growth as a student and thinker.',
+        integrityHelp: 'Instead of asking me to write something for you, let\'s work together on:\n• Brainstorming your ideas\n• Creating outlines and structure\n• Understanding the assignment requirements\n• Improving your writing process',
+        integrityWarning: '⚠️ Multiple integrity violations detected. Please focus on learning rather than shortcuts.',
+        understand: 'I Understand',
+        academicIntegrity: 'Academic Integrity:',
+        creditsLow: '💳 **No Credits Available**: You\'re out of Echo credits! Please purchase more credits to continue using AI features. You can buy credits from the header menu.',
+        tokenMissing: '🔐 **Token Missing**: Authentication token not found. Please sign out and sign in again.',
+        authError: '🔐 **Authentication Error**: Your session has expired. Please sign out and sign in again.',
+        paymentRequired: '💳 **Payment Required**: You\'re out of Echo credits! Please purchase more credits to continue using AI features.',
+        rateLimited: '⏰ **Rate Limited**: You\'re making requests too quickly. Please wait a moment and try again.',
+        connectionError: '🚨 **Connection Error**: Failed to connect to Echo AI. Please check your internet connection and try again.'
+      },
+      es: {
+        tutorSubtitle: 'Tutor de ELA',
+        newChat: 'Nueva Conversación',
+        helpButton: '?',
+        helpTitle: 'Cómo Puedo Ayudarte',
+        helpReading: {
+          title: '📖 Comprensión de Lectura',
+          description: 'Estrategias para entender textos, identificar ideas principales y analizar contenido'
+        },
+        helpWriting: {
+          title: '✍️ Proceso de Escritura',
+          description: 'Lluvia de ideas, esquemas, borradores, revisión y edición de tu trabajo'
+        },
+        helpGrammar: {
+          title: '📝 Gramática y Mecánica',
+          description: 'Estructura de oraciones, puntuación, ortografía y convenciones del idioma'
+        },
+        helpLiterature: {
+          title: '💭 Análisis Literario',
+          description: 'Comprensión de temas, recursos literarios, desarrollo de personajes y más'
+        },
+        helpIntegrity: 'Te ayudo a aprender y desarrollar tus propias ideas - ¡no escribo tareas por ti!',
+        quickTopics: 'Temas Rápidos',
+        inputPlaceholder: 'Pregúntame sobre lectura, escritura, gramática, vocabulario o literatura...',
+        smartSuggestions: '💡 Sugerencias Inteligentes',
+        clickToExplore: '💬 Haz clic en cualquier pregunta para explorar',
+        startConversation: '¡Inicia una conversación para ver sugerencias útiles!',
+        authRequired: '⚠️ **Autenticación Requerida**: Por favor inicia sesión con Echo para usar el tutor de ELA.',
+        integrityTitle: 'Recordatorio de Integridad Académica',
+        integrityMessage: '¡Estoy aquí para ayudarte a aprender, no para hacer tu trabajo por ti! La integridad académica es importante para tu crecimiento como estudiante y pensador.',
+        integrityHelp: 'En lugar de pedirme que escriba algo por ti, trabajemos juntos en:\n• Lluvia de ideas\n• Crear esquemas y estructura\n• Entender los requisitos de la tarea\n• Mejorar tu proceso de escritura',
+        integrityWarning: '⚠️ Se detectaron múltiples violaciones de integridad. Por favor enfócate en aprender en lugar de buscar atajos.',
+        understand: 'Entiendo',
+        academicIntegrity: 'Integridad Académica:',
+        creditsLow: '💳 **No Hay Créditos Disponibles**: ¡Se te acabaron los créditos de Echo! Por favor compra más créditos para continuar usando las funciones de IA. Puedes comprar créditos desde el menú del encabezado.',
+        tokenMissing: '🔐 **Token Faltante**: Token de autenticación no encontrado. Por favor cierra sesión y vuelve a iniciar sesión.',
+        authError: '🔐 **Error de Autenticación**: Tu sesión ha expirado. Por favor cierra sesión y vuelve a iniciar sesión.',
+        paymentRequired: '💳 **Pago Requerido**: ¡Se te acabaron los créditos de Echo! Por favor compra más créditos para continuar usando las funciones de IA.',
+        rateLimited: '⏰ **Límite de Velocidad**: Estás haciendo solicitudes muy rápido. Por favor espera un momento y vuelve a intentar.',
+        connectionError: '🚨 **Error de Conexión**: Falló la conexión con Echo AI. Por favor verifica tu conexión a internet y vuelve a intentar.'
+      },
+      ht: {
+        tutorSubtitle: 'Pwofesè ELA',
+        newChat: 'Nouvo Konvèsasyon',
+        helpButton: '?',
+        helpTitle: 'Kijan Mwen Ka Ede W',
+        helpReading: {
+          title: '📖 Konprann Lekti',
+          description: 'Estrateji pou konprann tèks yo, idantifye ide prensipal yo ak analize kontni an'
+        },
+        helpWriting: {
+          title: '✍️ Pwosesis Ekriti',
+          description: 'Brainstorming, fè plan, ekri bouyon, revize ak korije travay ou'
+        },
+        helpGrammar: {
+          title: '📝 Gramè ak Mekanik',
+          description: 'Estrikti fraz, ponktiyasyon, òtograf ak konvansyon lang lan'
+        },
+        helpLiterature: {
+          title: '💭 Analiz Literè',
+          description: 'Konprann tèm yo, teknik literè, devlopman karaktè ak plis ankò'
+        },
+        helpIntegrity: 'Mwen ede w aprann ak devlope pwòp ide w yo - mwen pa ekri devwa pou ou!',
+        quickTopics: 'Sijè Rapid',
+        inputPlaceholder: 'Mande m sou lekti, ekriti, gramè, vokabilè, oswa literati...',
+        smartSuggestions: '💡 Sijesyon Entèlijan',
+        clickToExplore: '💬 Klike sou nenpòt kesyon pou eksplore',
+        startConversation: 'Kòmanse yon konvèsasyon pou wè sijesyon itil yo!',
+        authRequired: '⚠️ **Otentifikasyon Obligatwa**: Tanpri konekte ak Echo pou itilize pwofesè ELA a.',
+        integrityTitle: 'Rapèl Entegrite Akademik',
+        integrityMessage: 'Mwen la pou ede w aprann, pa pou fè travay ou pou ou! Entegrite akademik enpòtan pou kwasans ou kòm elèv ak moun k ap reflechi.',
+        integrityHelp: 'Olye mande m ekri yon bagay pou ou, ann travay ansanm sou:\n• Brainstorming ide w yo\n• Kreye plan ak estrikti\n• Konprann egzijans devwa a\n• Amelyore pwosesis ekriti w',
+        integrityWarning: '⚠️ Yo detekte plizyè vyolasyon entegrite. Tanpri konsantre sou aprann olye chèche raccourci.',
+        understand: 'Mwen Konprann',
+        academicIntegrity: 'Entegrite Akademik:',
+        creditsLow: '💳 **Pa Gen Kredi Disponib**: Ou pa gen kredi Echo ankò! Tanpri achte plis kredi pou kontinye itilize fonksyon AI yo. Ou ka achte kredi nan meni tèt la.',
+        tokenMissing: '🔐 **Token Manke**: Token otentifikasyon an pa jwenn. Tanpri dekonekte ak konekte ankò.',
+        authError: '🔐 **Erè Otentifikasyon**: Sesyon ou an ekspire. Tanpri dekonekte ak konekte ankò.',
+        paymentRequired: '💳 **Peman Obligatwa**: Ou pa gen kredi Echo ankò! Tanpri achte plis kredi pou kontinye itilize fonksyon AI yo.',
+        rateLimited: '⏰ **Limit Vitès**: W ap fè demann yo twò vit. Tanpri tann yon moman ak eseye ankò.',
+        connectionError: '🚨 **Erè Koneksyon**: Echèk koneksyon ak Echo AI. Tanpri verifye koneksyon entènèt ou ak eseye ankò.'
+      }
+    };
+
+    return uiTexts[lang.code as keyof typeof uiTexts] || uiTexts.en;
+  };
+
   const currentSuggestions = getCurrentSuggestions();
+  const uiText = getUIText();
 
   return (
     <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
@@ -539,7 +781,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Claude {selectedAuthor}</h1>
-            <p className="text-sm text-purple-200">ELA Tutor</p>
+            <p className="text-sm text-purple-200">{uiText.tutorSubtitle}</p>
           </div>
         </div>
         
@@ -548,14 +790,14 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
             onClick={handleNewChat}
             className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-md transition-colors"
           >
-            New Chat
+            {uiText.newChat}
           </button>
           
           <button
             onClick={() => setShowHelp(!showHelp)}
             className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors"
           >
-            ?
+            {uiText.helpButton}
           </button>
         </div>
       </div>
@@ -563,36 +805,36 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
       {/* Help Panel */}
       {showHelp && (
         <div className="bg-purple-800/50 backdrop-blur-md border-b border-white/10 p-4">
-          <h3 className="text-lg font-semibold text-white mb-2">How I Can Help You</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">{uiText.helpTitle}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-purple-200">
             <div>
-              <h4 className="font-medium text-white">📖 Reading Comprehension</h4>
-              <p>Strategies for understanding texts, identifying main ideas, and analyzing content</p>
+              <h4 className="font-medium text-white">{uiText.helpReading.title}</h4>
+              <p>{uiText.helpReading.description}</p>
             </div>
             <div>
-              <h4 className="font-medium text-white">✍️ Writing Process</h4>
-              <p>Brainstorming, outlining, drafting, revising, and editing your work</p>
+              <h4 className="font-medium text-white">{uiText.helpWriting.title}</h4>
+              <p>{uiText.helpWriting.description}</p>
             </div>
             <div>
-              <h4 className="font-medium text-white">📝 Grammar & Mechanics</h4>
-              <p>Sentence structure, punctuation, spelling, and language conventions</p>
+              <h4 className="font-medium text-white">{uiText.helpGrammar.title}</h4>
+              <p>{uiText.helpGrammar.description}</p>
             </div>
             <div>
-              <h4 className="font-medium text-white">💭 Literature Analysis</h4>
-              <p>Understanding themes, literary devices, character development, and more</p>
+              <h4 className="font-medium text-white">{uiText.helpLiterature.title}</h4>
+              <p>{uiText.helpLiterature.description}</p>
             </div>
           </div>
           <p className="text-xs text-purple-300 mt-3">
-            <strong>Academic Integrity:</strong> I help you learn and develop your own ideas - I don't write assignments for you!
+            <strong>{uiText.academicIntegrity}</strong> {uiText.helpIntegrity}
           </p>
         </div>
       )}
 
       {/* Topic Selection */}
       <div className="bg-black/10 backdrop-blur-md border-b border-white/10 p-4">
-        <h3 className="text-sm font-medium text-white mb-3">Quick Topics</h3>
+        <h3 className="text-sm font-medium text-white mb-3">{uiText.quickTopics}</h3>
         <div className="flex flex-wrap gap-2">
-          {topics.map((topic) => {
+          {getTopics().map((topic) => {
             const IconComponent = topic.icon;
             return (
               <button
@@ -661,7 +903,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me about reading, writing, grammar, vocabulary, or literature..."
+                placeholder={uiText.inputPlaceholder}
                 className="flex-1 bg-white/10 border border-white/20 rounded-md px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
               <button
@@ -680,7 +922,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
           <div className="p-4 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-yellow-400" />
-              <h4 className="text-sm font-semibold text-white">💡 Smart Suggestions</h4>
+              <h4 className="text-sm font-semibold text-white">{uiText.smartSuggestions}</h4>
             </div>
           </div>
           
@@ -704,7 +946,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
               </div>
               <div className="mt-4 p-3 bg-purple-600/20 border border-purple-400/30 rounded-lg">
                 <div className="text-xs text-purple-300 text-center">
-                  💬 Click any question to explore
+                  💬 {uiText.clickToExplore}
                 </div>
               </div>
             </div>
@@ -714,7 +956,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-purple-300 text-sm">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Start a conversation to see helpful suggestions!</p>
+                <p>{uiText.startConversation}</p>
               </div>
             </div>
           )}
@@ -725,20 +967,16 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
       {showDishonestyModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-red-600 mb-4">Academic Integrity Reminder</h3>
+            <h3 className="text-lg font-semibold text-red-600 mb-4">{uiText.integrityTitle}</h3>
             <p className="text-gray-700 mb-4">
-              I'm here to help you learn, not to do your work for you! Academic integrity is important for your growth as a student and thinker.
+              {uiText.integrityMessage}
             </p>
             <p className="text-gray-700 mb-4">
-              Instead of asking me to write something for you, let's work together on:
-              • Brainstorming your ideas
-              • Creating outlines and structure  
-              • Understanding the assignment requirements
-              • Improving your writing process
+              {uiText.integrityHelp}
             </p>
             {dishonestyCount > 3 && (
               <p className="text-red-600 font-medium mb-4">
-                ⚠️ Multiple integrity violations detected. Please focus on learning rather than shortcuts.
+                ⚠️ {uiText.integrityWarning}
               </p>
             )}
             <div className="flex justify-end space-x-2">
@@ -746,7 +984,7 @@ Please respond with exactly 6 questions, one per line, without numbering or bull
                 onClick={() => setShowDishonestyModal(false)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
               >
-                I Understand
+                {uiText.understand}
               </button>
             </div>
           </div>
