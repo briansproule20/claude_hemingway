@@ -53,6 +53,11 @@ const ELATutorChatbot: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  
+  // Suggestion management state
+
+  const [availableSuggestions, setAvailableSuggestions] = useState<string[]>([]);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
 
   // Expanded list of academic dishonesty phrases
   const writingRequestPatterns: string[] = [
@@ -146,6 +151,23 @@ const ELATutorChatbot: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Update available suggestions when conversation changes
+  useEffect(() => {
+    const updateSuggestions = async () => {
+      const newSuggestions = await generateContextualSuggestions();
+      setAvailableSuggestions(newSuggestions);
+      setLastUpdateTime(Date.now());
+    };
+    updateSuggestions();
+  }, [messages]);
+
+  // No auto-scroll - suggestions only change when conversation progresses
+
+  // Get all 6 suggestions to display
+  const getCurrentSuggestions = (): string[] => {
+    return availableSuggestions.slice(0, 6);
+  };
+
   const topics: Topic[] = [
     { id: 'reading', name: 'Reading Comprehension', icon: BookOpen },
     { id: 'writing', name: 'Writing Skills', icon: PenTool },
@@ -200,96 +222,77 @@ const ELATutorChatbot: React.FC = () => {
     }
   };
 
-  const generateSuggestions = (content: string): string[] => {
-    const lowerContent = content.toLowerCase();
-    
-    // Context-aware suggestions based on conversation content
-    let suggestions: string[] = [];
-    
-    if (lowerContent.includes('read') || lowerContent.includes('comprehension')) {
-      suggestions = [
-        "What strategies help with reading comprehension?",
-        "How can I identify the main idea in complex texts?",
-        "What are context clues and how do I use them?",
-        "How do I analyze cause and effect in reading?",
-        "What's the difference between fact and opinion?",
-        "How can I improve my reading speed and retention?"
-      ];
-    } else if (lowerContent.includes('writ') || lowerContent.includes('essay')) {
-      suggestions = [
-        "How do I create a strong thesis statement?",
-        "What's the best way to organize my paragraphs?",
-        "How can I improve my transitions between ideas?",
-        "What makes a compelling introduction?",
-        "How do I cite sources properly?",
-        "What's the difference between revising and editing?"
-      ];
-    } else if (lowerContent.includes('grammar') || lowerContent.includes('sentence')) {
-      suggestions = [
-        "When should I use commas in a sentence?",
-        "What's the difference between active and passive voice?",
-        "How do I fix run-on sentences?",
-        "What are the most common grammar mistakes?",
-        "How do I use semicolons correctly?",
-        "What's subject-verb agreement?"
-      ];
-    } else if (lowerContent.includes('vocab') || lowerContent.includes('word')) {
-      suggestions = [
-        "How can I learn new vocabulary effectively?",
-        "What are root words and how do they help?",
-        "How do I use context to understand unfamiliar words?",
-        "What's the difference between denotation and connotation?",
-        "How can I improve my academic vocabulary?",
-        "What are some powerful transition words?"
-      ];
-    } else if (lowerContent.includes('literature') || lowerContent.includes('poem') || lowerContent.includes('story')) {
-      suggestions = [
-        "How do I analyze themes in literature?",
-        "What are common literary devices and their effects?",
-        "How do I understand symbolism in stories?",
-        "What's the difference between plot and theme?",
-        "How do I analyze character development?",
-        "What makes poetry different from prose?"
-      ];
-    } else if (lowerContent.includes('test') || lowerContent.includes('exam')) {
-      suggestions = [
-        "What are the best test-taking strategies for ELA?",
-        "How should I manage my time during reading tests?",
-        "What's the best way to approach essay questions?",
-        "How do I eliminate wrong answers on multiple choice?",
-        "What should I review before an ELA test?",
-        "How can I reduce test anxiety?"
-      ];
-    } else if (lowerContent.includes('speak') || lowerContent.includes('present')) {
-      suggestions = [
-        "How can I organize my presentation effectively?",
-        "What techniques help with public speaking nerves?",
-        "How do I engage my audience during presentations?",
-        "What makes visual aids effective?",
-        "How can I improve my voice and body language?",
-        "What's the best way to practice a speech?"
-      ];
-    } else {
-      // General suggestions for any context
-      suggestions = [
-        "How can I become a better reader?",
-        "What makes writing more engaging?",
-        "How do I improve my grammar skills?",
-        "What are effective study strategies for ELA?",
-        "How can I build my vocabulary?",
-        "What's the key to understanding literature?",
-        "How do I write a strong conclusion?",
-        "What are good research techniques?",
-        "How can I improve my critical thinking?",
-        "What makes effective communication?",
-        "How do I analyze different text types?",
-        "What are the elements of good storytelling?"
+  const generateContextualSuggestions = async (): Promise<string[]> => {
+    // If no conversation yet, return foundational questions
+    if (messages.length <= 1) {
+      return [
+        "What makes a story compelling to read?",
+        "How can I express my ideas more clearly?",
+        "What's the difference between formal and informal writing?",
+        "How do I find my unique writing voice?",
+        "What are some techniques for creative thinking?",
+        "How can reading improve my writing skills?"
       ];
     }
-    
-    // Return 4 random suggestions from the appropriate category
-    const shuffled = suggestions.sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 4);
+
+    try {
+      // Get recent conversation context
+      const recentMessages = messages.slice(-4);
+      const conversationContext = recentMessages.map(m => 
+        `${m.type === 'user' ? 'Student' : 'Tutor'}: ${m.content}`
+      ).join('\n');
+
+      // Call Claude to generate intelligent suggestions
+      const response = await fetch('http://localhost:3001/api/claude', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Based on this recent ELA tutoring conversation, generate exactly 6 thoughtful follow-up questions that would naturally extend the discussion and help the student learn more. The questions should be:
+1. Directly related to what's been discussed
+2. Progressively build on the concepts mentioned
+3. Encourage deeper thinking and analysis
+4. Be engaging and age-appropriate
+5. Help the student make connections to broader learning
+
+Recent conversation:
+${conversationContext}
+
+Please respond with exactly 6 questions, one per line, without numbering or bullet points. Make them natural follow-up questions that a thoughtful tutor would ask.`,
+          messages: [] // Don't include full history for suggestion generation
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate suggestions');
+      }
+
+      const data = await response.json();
+      const suggestions = data.response
+        .split('\n')
+        .filter((line: string) => line.trim())
+        .map((line: string) => line.trim())
+        .slice(0, 6);
+
+      return suggestions.length >= 3 ? suggestions : getFallbackSuggestions();
+    } catch (error) {
+      console.error('Error generating Claude suggestions:', error);
+      return getFallbackSuggestions();
+    }
+  };
+
+  const getFallbackSuggestions = (): string[] => {
+    // Simple fallback suggestions if Claude fails
+    const fallbacks = [
+      "What's the most important thing I should focus on improving?",
+      "How can I practice this skill in my daily life?",
+      "What would help me feel more confident about this topic?",
+      "What patterns do I notice in good writing?",
+      "How do different genres approach the same themes?",
+      "What makes some texts more memorable than others?"
+    ];
+    return fallbacks.slice(0, 6);
   };
 
   const generateFallbackResponse = (userMessage: string): string => {
@@ -320,7 +323,7 @@ const ELATutorChatbot: React.FC = () => {
     if (lowerMessage.includes('writ') || lowerMessage.includes('essay') || lowerMessage.includes('paper')) {
       const responses = [
         "I'd love to help you with your writing! The key to good writing is good planning. Let's start with these steps: 🎯 Clarify your main idea or argument, 📋 Create an outline with your key points, 📝 Write a rough draft focusing on getting your ideas down, ✏️ Revise and edit for clarity. What's your topic?",
-         "Writing is a process, and I'm here to guide you through it! Here's a helpful framework: 🔍 Brainstorm your ideas, 🏗️ Organize them logically, ✍️ Write your first draft, 🔄 Revise for content and clarity, ✅ Proofread for errors. Which step would you like help with?",
+         "Writing is a process, and I'm here to guide you through it! Here's a helpful framework: 🔍 Brainstorm your ideas, 🏗️ Organize them logically, ✍️ Write your first draft, �� Revise for content and clarity, ✅ Proofread for errors. Which step would you like help with?",
           "Great writing starts with clear thinking! Let's work on developing your ideas: 💡 What's your main point or thesis? 📊 What evidence supports your argument? 🔗 How do your ideas connect? 🎯 What's your purpose and audience? Tell me about your writing assignment!"
       ];
       return responses[Math.floor(Math.random() * responses.length)];
@@ -426,7 +429,7 @@ const ELATutorChatbot: React.FC = () => {
     setShowDishonestyModal(false);
   };
 
-  const currentSuggestions = messages.length > 0 ? generateSuggestions(messages[messages.length - 1].content) : [];
+  const currentSuggestions = getCurrentSuggestions();
 
   return (
     <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
@@ -579,18 +582,19 @@ const ELATutorChatbot: React.FC = () => {
           <div className="p-4 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-yellow-400" />
-              <h4 className="text-sm font-semibold text-white">💡 Quick Tips</h4>
+              <h4 className="text-sm font-semibold text-white">💡 Smart Suggestions</h4>
             </div>
           </div>
           
           {currentSuggestions.length > 0 && (
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-2">
-                {currentSuggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
+                                  {currentSuggestions.map((suggestion: string, index: number) => (
+                    <button
+                      key={`${suggestion}-${index}`}
                     onClick={() => handleSuggestionClick(suggestion)}
-                    className="w-full flex items-start gap-2 p-3 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-purple-400/50 text-purple-100 hover:text-white text-sm rounded-lg transition-all duration-200 text-left group"
+                    className="w-full flex items-start gap-2 p-3 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-purple-400/50 text-purple-100 hover:text-white text-sm rounded-lg transition-all duration-500 text-left group animate-in fade-in slide-in-from-right-2"
+                    style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <div className="w-1.5 h-1.5 bg-purple-400 rounded-full group-hover:bg-yellow-400 transition-colors mt-2 flex-shrink-0"></div>
                     <span className="flex-1 leading-relaxed">{suggestion}</span>
