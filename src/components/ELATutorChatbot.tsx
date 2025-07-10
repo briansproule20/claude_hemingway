@@ -63,7 +63,6 @@ const ELATutorChatbot: React.FC = () => {
   const { currentLanguage, languageOptions } = useLanguage();
   
   console.log('🔑 Environment check on mount:', {
-    apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'Present' : 'Missing',
     echoAppId: process.env.REACT_APP_ECHO_APP_ID ? 'Present' : 'Missing',
     echoAuthenticated: isAuthenticated ? 'Yes' : 'No',
     echoBalance: balance?.credits || 0,

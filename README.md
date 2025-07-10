@@ -77,15 +77,15 @@ An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 S
 
 - Node.js (version 14 or higher)
 - npm or yarn
-- Anthropic API key
+- Echo account and API key
 
 ### Setup
 
-1. **Get an Anthropic API Key**:
-   - Visit [https://console.anthropic.com/](https://console.anthropic.com/)
+1. **Get an Echo API Key**:
+   - Visit [https://echo.merit.systems/](https://echo.merit.systems/)
    - Sign up and create an account
    - Navigate to API Keys section
-   - Create a new API key (starts with 'sk-ant-')
+   - Create a new API key
 
 2. **Clone and Install**:
    ```bash
@@ -94,11 +94,11 @@ An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 S
    npm install
    ```
 
-3. **Configure API Key**:
+3. **Configure Echo API Key**:
    - Create a `.env` file in the root directory
-   - Add your Anthropic API key:
+   - Add your Echo API key:
      ```
-     REACT_APP_ANTHROPIC_API_KEY=your-api-key-here
+     REACT_APP_ECHO_APP_ID=your-echo-app-id-here
      ```
    - **Important**: Never commit the `.env` file to version control!
 
@@ -112,7 +112,7 @@ An interactive English Language Arts (ELA) tutor chatbot powered by Claude 3.5 S
 ## How It Works
 
 ### API Integration
-- Uses Anthropic's Claude API directly via the `@ai-sdk/anthropic` package
+- Uses GPT-4o via Echo's AI router for consistent billing and management
 - Maintains conversation context across messages
 - Enforces academic integrity rules through system prompts
 - Provides educational fallback responses when API is unavailable
@@ -181,8 +181,8 @@ The chatbot includes robust protections against academic dishonesty with educati
 ## Technology Stack
 
 - **Frontend**: React 18 with TypeScript
-- **AI**: Claude 3.5 Sonnet via Anthropic API
-- **AI SDK**: Vercel AI SDK with Anthropic provider
+- **AI**: GPT-4o via Echo AI router
+- **AI SDK**: Vercel AI SDK with OpenAI provider
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **State Management**: React hooks
@@ -207,8 +207,8 @@ src/
 Create a `.env` file in the root directory:
 
 ```bash
-# Required: Your Anthropic API key
-REACT_APP_ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+# Required: Your Echo App ID
+REACT_APP_ECHO_APP_ID=your-echo-app-id-here
 ```
 
 ## Customization
@@ -248,10 +248,10 @@ The app is a standard React application and can be deployed to any static hostin
 ## Troubleshooting
 
 ### API Key Issues
-- Ensure your API key starts with 'sk-ant-'
+- Ensure your Echo App ID is correctly configured
 - Check that the `.env` file is in the root directory
 - Restart the development server after adding the API key
-- Verify your API key is active in the Anthropic console
+- Verify your Echo account is active and has credits
 
 ### Common Errors
 - **401 Unauthorized**: Check your API key
