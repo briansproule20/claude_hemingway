@@ -966,7 +966,7 @@ ${document.content.substring(0, 3000)}${document.content.length > 3000 ? '...' :
   const uiText = getUIText();
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
       {/* Header */}
       <div className="bg-black/20 backdrop-blur-md border-b border-white/10 p-4 flex justify-between items-center">
         <div className="flex items-center space-x-3">
@@ -1049,11 +1049,11 @@ ${document.content.substring(0, 3000)}${document.content.length > 3000 ? '...' :
       </div>
 
       {/* Main Content Area - Split Layout */}
-      <div className="flex min-h-96">
+      <div className="flex h-[calc(100vh-200px)]">
         {/* Chat Area - Left Side */}
         <div className="flex-1 flex flex-col">
           {/* Chat Messages */}
-          <div className="h-[600px] overflow-y-auto p-4 space-y-4">
+          <div className="h-[calc(100vh-120px)] overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
