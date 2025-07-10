@@ -18,9 +18,21 @@ const EchoControlHeader: React.FC = () => {
 
   // Debug logging
   useEffect(() => {
+    console.log('🔍 === ECHO DEBUG INFO ===');
     console.log('EchoControlHeader - Full Echo context:', { user, balance, error });
     console.log('EchoControlHeader - User data:', user);
     console.log('EchoControlHeader - Balance data:', balance);
+    console.log('🔍 === CHECKING ALL SESSIONSTORE KEYS ===');
+    
+    // Check ALL sessionStorage keys to see what's actually there
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key) {
+        console.log(`sessionStorage[${key}]:`, sessionStorage.getItem(key));
+      }
+    }
+    
+    console.log('🔍 === END SESSION STORAGE DUMP ===');
   }, [user, balance, error]);
 
   // Check if credits are low (less than 10)
@@ -45,8 +57,57 @@ const EchoControlHeader: React.FC = () => {
   useEffect(() => {
     if (user) {
       console.log('🚀 User detected, using Echo SDK user data:', user);
-      // Just use the Echo SDK user data directly
-      if (user.id !== 'unknown' || user.email !== '' || user.name !== 'User') {
+      
+      // Check if Echo SDK returned placeholder data
+      const hasPlaceholderData = user.id === 'unknown' || user.email === '' || user.name === 'User';
+      
+      if (hasPlaceholderData) {
+        console.log('🔧 Echo SDK returned placeholder data, extracting from JWT token...');
+        
+        // Extract real user info from JWT
+        try {
+          const instanceId = process.env.REACT_APP_ECHO_APP_ID;
+          const oidcKey = `oidc.user:https://echo.merit.systems:${instanceId}`;
+          const oidcData = sessionStorage.getItem(oidcKey);
+          
+          if (oidcData) {
+            const parsed = JSON.parse(oidcData);
+            const token = parsed.access_token;
+            
+            if (token) {
+              // Decode JWT token
+              const parts = token.split('.');
+              if (parts.length === 3) {
+                const payload = JSON.parse(atob(parts[1]));
+                console.log('🔓 JWT Payload:', payload);
+                
+                // Use what we actually have - make it user-friendly
+                const realUserInfo = {
+                  id: payload.user_id || payload.sub || 'unknown',
+                  email: '', // Echo doesn't provide this
+                  name: `Echo User`, // Keep it simple
+                  picture: '',
+                  organization: 'Merit Systems',
+                  source: 'jwt-token',
+                  app_id: payload.app_id,
+                  scope: payload.scope,
+                  expires_at: payload.exp,
+                  issued_at: payload.iat,
+                  // Add user-friendly display info
+                  displayName: `Echo User (${payload.user_id ? payload.user_id.slice(0, 8) : 'unknown'}...)`,
+                  status: 'Authenticated ✓'
+                };
+                
+                console.log('✅ Extracted real user info from JWT:', realUserInfo);
+                setAccountInfo(realUserInfo);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error extracting user info from JWT:', error);
+        }
+      } else {
+        // Use Echo SDK data if it's valid
         setAccountInfo({
           id: user.id,
           email: user.email,
@@ -220,6 +281,53 @@ const EchoControlHeader: React.FC = () => {
     fetchRealMeritAccount();
   };
 
+  // Fetch user profile from Echo API
+  const fetchEchoUserProfile = async (accessToken: string, userId: string) => {
+    try {
+      console.log('🔍 Fetching user profile from Echo API...');
+      
+      // Try different Echo user info endpoints
+      const endpoints = [
+        'https://echo.merit.systems/api/v1/user/profile',
+        'https://echo.merit.systems/api/user/profile',
+        'https://echo.merit.systems/api/v1/user/me',
+        'https://echo.merit.systems/api/user/me',
+        'https://echo.merit.systems/api/v1/userinfo',
+        'https://echo.merit.systems/api/userinfo',
+        'https://echo.merit.systems/userinfo'
+      ];
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`🔍 Trying user info endpoint: ${endpoint}`);
+          
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const profileData = await response.json();
+            console.log('✅ Got profile data from Echo:', profileData);
+            return profileData;
+          } else {
+            console.log(`❌ ${endpoint} failed: ${response.status}`);
+          }
+        } catch (error) {
+          console.log(`❌ ${endpoint} error:`, error);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching Echo user profile:', error);
+      return null;
+    }
+  };
+
   const platformLinks = [
     {
       name: 'Merit Systems',
@@ -345,8 +453,9 @@ const EchoControlHeader: React.FC = () => {
                     {accountInfo?.organization || 'Echo Account'}
                   </p>
                   <p className="text-xs opacity-80">
-                    {accountInfo?.id ? `ID: ${accountInfo.id.slice(0, 8)}...` :
-                     accountInfo?.email ? `Email: ${accountInfo.email.slice(0, 10)}...` :
+                    {accountInfo?.id && accountInfo.id !== 'unknown' ? `ID: ${accountInfo.id.slice(0, 8)}...` :
+                     accountInfo?.email && accountInfo.email !== '' ? `Email: ${accountInfo.email.slice(0, 10)}...` :
+                     accountInfo?.name && accountInfo.name !== 'User' ? `Name: ${accountInfo.name}` :
                      user?.id && user.id !== 'unknown' ? `ID: ${user.id.slice(0, 8)}...` : 
                      user?.email && user.email !== '' ? `Email: ${user.email.slice(0, 10)}...` : 
                      user?.name && user.name !== 'User' ? `Name: ${user.name}` :

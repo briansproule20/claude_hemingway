@@ -212,7 +212,12 @@ const ELATutorChatbot: React.FC = () => {
     try {
       // Check if user is authenticated
       if (!echo?.isAuthenticated) {
-        throw new Error('User not authenticated with Echo');
+        return "❌ **Authentication Error**: You need to be signed in to Echo to use AI features. Please sign in and try again.";
+      }
+
+      // Check if user has credits
+      if (echo.balance && echo.balance.credits <= 0) {
+        return "💳 **No Credits Available**: You're out of Echo credits! Please purchase more credits to continue using AI features. You can buy credits from the header menu.";
       }
 
       // Get authentication token from sessionStorage
@@ -221,14 +226,14 @@ const ELATutorChatbot: React.FC = () => {
       const oidcData = sessionStorage.getItem(oidcKey);
       
       if (!oidcData) {
-        throw new Error('No authentication token found');
+        return "🔐 **Token Error**: Authentication token not found. Please sign out and sign back in to Echo.";
       }
 
       const parsed = JSON.parse(oidcData);
       const accessToken = parsed.access_token;
 
       if (!accessToken) {
-        throw new Error('No access token available');
+        return "🔐 **Token Error**: Access token not available. Please sign out and sign back in to Echo.";
       }
 
       console.log('🌐 Making authenticated call to Echo LLM API');
@@ -284,6 +289,8 @@ Always maintain academic integrity and promote genuine learning.`
         temperature: 0.7
       };
 
+      let lastError = '';
+
       // Try each endpoint until one works
       for (const endpoint of apiEndpoints) {
         try {
@@ -326,23 +333,33 @@ Always maintain academic integrity and promote genuine learning.`
             const errorText = await response.text();
             console.log(`❌ ${endpoint} failed: ${response.status} - ${errorText}`);
             
-            // Don't throw here, try next endpoint
+            // Check for specific error types
+            if (response.status === 401 || response.status === 403) {
+              return "🔐 **Authentication Failed**: Your Echo session has expired or you don't have permission to use AI features. Please sign out and sign back in.";
+            } else if (response.status === 402 || response.status === 429) {
+              return "💳 **Insufficient Credits**: You don't have enough Echo credits to make this request. Please purchase more credits from the header menu.";
+            } else if (response.status === 503 || response.status === 502) {
+              return "🔧 **Service Unavailable**: Echo AI service is temporarily unavailable. Please try again in a moment.";
+            }
+            
+            lastError = `${response.status}: ${errorText}`;
             continue;
           }
         } catch (endpointError) {
           console.log(`❌ ${endpoint} error:`, endpointError);
+          lastError = endpointError instanceof Error ? endpointError.message : 'Network error';
           continue;
         }
       }
 
-      // If all endpoints failed, throw an error
-      throw new Error('All Echo API endpoints failed');
+      // If all endpoints failed, show the actual error
+      return `🚨 **Echo AI Connection Failed**: All Echo API endpoints failed. Last error: ${lastError}. Please check your internet connection and try again.`;
       
     } catch (error) {
       console.error('❌ Echo LLM API error:', error);
       
-      // Return a seamless fallback response without showing technical errors
-      return generateFallbackResponse(userMessage);
+      // Return specific error information
+      return `🚨 **Echo AI Error**: ${error instanceof Error ? error.message : 'Unknown error occurred'}. Please try again or contact support if this persists.`;
     }
   };
 
@@ -378,6 +395,12 @@ Recent conversation:
 ${conversationContext}
 
 Please respond with exactly 6 questions, one per line, without numbering or bullet points. Make them natural follow-up questions that a thoughtful tutor would ask.`);
+
+      // Check if response is an error message
+      if (response.includes('**') && (response.includes('Error') || response.includes('Failed') || response.includes('Credits') || response.includes('Authentication'))) {
+        console.log('Echo LLM failed for suggestions, using fallback');
+        return getFallbackSuggestions();
+      }
 
       const suggestions = response
         .split('\n')

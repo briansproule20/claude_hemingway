@@ -8,8 +8,8 @@ const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 
-// Echo config with proper configuration based on README
 const echoConfig = {
+  appId: process.env.REACT_APP_ECHO_APP_ID || '',
   instanceId: process.env.REACT_APP_ECHO_APP_ID || '',
   apiUrl: 'https://echo.merit.systems',
   redirectUri: 'http://localhost:3000',
@@ -17,7 +17,7 @@ const echoConfig = {
 };
 
 console.log('🔧 Echo config:', echoConfig);
-console.log('🔧 Instance ID:', process.env.REACT_APP_ECHO_APP_ID);
+console.log('🔧 App ID:', process.env.REACT_APP_ECHO_APP_ID);
 
 root.render(
   <React.StrictMode>
