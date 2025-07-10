@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, BookOpen, PenTool, FileText, MessageCircle, Lightbulb, CheckCircle } from 'lucide-react';
-import { useMockEcho } from '../MockEchoProvider';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText } from 'ai';
 
 // Type definitions
 interface Message {
@@ -18,8 +15,6 @@ interface Topic {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-type Mode = 'demo' | 'echo';
-
 // Famous author last names for random selection
 const famousAuthors: string[] = [
   'Hemingway', 'Fitzgerald', 'Dickens', 'Austen', 'Tolstoy', 'Dostoevsky', 
@@ -30,36 +25,12 @@ const famousAuthors: string[] = [
 ];
 
 const ELATutorChatbot: React.FC = () => {
-  console.log('ELATutorChatbot: Component is loading...');
-  
-  // Safely handle Echo SDK with fallback
-  let echoState;
-  try {
-    echoState = useMockEcho();
-  } catch (error) {
-    console.warn('Echo SDK initialization failed:', error);
-    echoState = {
-      isAuthenticated: false,
-      isLoading: false,
-      user: null,
-      balance: null,
-      signOut: () => console.log('Demo mode - signOut'),
-      signIn: () => console.log('Demo mode - signIn')
-    };
-  }
-  
-  // Provide defaults for potentially undefined values
-  const {
-    isAuthenticated = false,
-    isLoading = false,
-    user = null,
-    balance = null,
-    signOut = () => console.log('Demo mode - signOut'),
-    signIn = () => console.log('Demo mode - signIn')
-  } = echoState || {};
-  
-  console.log('ELATutorChatbot: Echo state:', { isAuthenticated, isLoading, user, balance });
-  console.log('ELATutorChatbot: signIn function exists:', !!signIn);
+  console.log('🚀 ELATutorChatbot: Component is loading...');
+  console.log('🔑 Environment check on mount:', {
+    apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY ? 'FOUND' : 'NOT FOUND',
+    apiKeyLength: process.env.REACT_APP_ANTHROPIC_API_KEY?.length,
+    apiKeyStart: process.env.REACT_APP_ANTHROPIC_API_KEY?.substring(0, 10)
+  });
   
   const initialMessage = (author: string): Message[] => ([
     {
@@ -167,9 +138,6 @@ const ELATutorChatbot: React.FC = () => {
   const [dishonestyCount, setDishonestyCount] = useState<number>(0);
   const [showDishonestyModal, setShowDishonestyModal] = useState<boolean>(false);
 
-  // Mode: 'demo' (fallbacks only) or 'echo' (Claude via Echo)
-  const [mode, setMode] = useState<Mode>('echo'); // Changed to 'echo' to enable Echo integration
-
   const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -238,43 +206,34 @@ Always maintain academic integrity and promote genuine learning.
 `;
 
   const callClaudeAPI = async (userMessage: string): Promise<string> => {
-    console.log('Calling Claude API...');
+    console.log('�� Calling Claude API via backend...');
     
-    // Check if user has sufficient balance
-    if (balance && typeof balance === 'number' && balance < 10) {
-      return "I notice your balance is running low. You'll need to add credits to continue using the Claude AI tutor. In the meantime, I can provide basic guidance using the educational resources built into this platform.";
-    }
-
     try {
-      const anthropic = createAnthropic({
-        apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY || 'sk-ant-placeholder',
+      console.log('🚀 Making request to backend...');
+      const response = await fetch('http://localhost:3001/api/claude', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          messages: messages
+        }),
       });
 
-      console.log('Creating stream...');
-      const result = await streamText({
-        model: anthropic('claude-3-haiku-20240307'),
-        system: SYSTEM_PROMPT,
-        messages: [
-          ...messages.map(msg => ({
-            role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
-            content: msg.content
-          })),
-          { role: 'user' as const, content: userMessage }
-        ],
-        maxTokens: 500,
-        temperature: 0.7,
-      });
-
-      let fullResponse = '';
-      for await (const chunk of result.textStream) {
-        fullResponse += chunk;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log('Received Claude response:', fullResponse);
-      return fullResponse;
+      const data = await response.json();
+      console.log('✅ Received response from backend:', data.response);
+      return data.response;
     } catch (error) {
-      console.error('Claude API error:', error);
-      return generateFallbackResponse(userMessage);
+      console.error('❌ Backend API error:', error);
+      if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        return "⚠️ **Backend Connection Error**: Unable to connect to the backend server. Make sure the server is running on port 3001. " + generateFallbackResponse(userMessage);
+      }
+      return "⚠️ **Connection Error**: Unable to get response from Claude AI. " + generateFallbackResponse(userMessage);
     }
   };
 
@@ -498,7 +457,7 @@ Always maintain academic integrity and promote genuine learning.
     if (lowerMessage.includes('genre') || lowerMessage.includes('type') || lowerMessage.includes('kind') || lowerMessage.includes('different')) {
       const responses = [
         "Exploring different genres expands your literary horizons! Each genre offers unique elements: 📚 Fiction (character, plot, theme), 📰 Non-fiction (facts, arguments, evidence), 🎭 Drama (dialogue, stage directions), 📝 Poetry (imagery, rhythm, form). What genre interests you most?",
-        "Different text types require different reading strategies! Here's how to approach them: 📖 Narratives (follow plot and character development), 📊 Informational texts (identify main ideas and evidence), 🎨 Literary texts (analyze literary devices and themes). What type of text are you reading?",
+        "Different text types require different reading strategies! Here's how to approach them: �� Narratives (follow plot and character development), 📊 Informational texts (identify main ideas and evidence), 🎨 Literary texts (analyze literary devices and themes). What type of text are you reading?",
         "Each genre has its own conventions and purposes! Understanding these helps you: 🎯 Set appropriate expectations, 🔍 Use genre-specific reading strategies, 📝 Appreciate the author's craft, 💭 Make meaningful connections. Which genre would you like to explore?"
       ];
       return responses[Math.floor(Math.random() * responses.length)];
@@ -519,7 +478,12 @@ Always maintain academic integrity and promote genuine learning.
   };
 
   const handleSend = async (): Promise<void> => {
-    if (!inputValue.trim()) return;
+    console.log('🎯 handleSend called with input:', inputValue);
+    
+    if (!inputValue.trim()) {
+      console.log('❌ No input provided, returning early');
+      return;
+    }
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -528,20 +492,15 @@ Always maintain academic integrity and promote genuine learning.
       timestamp: new Date()
     };
 
+    console.log('📝 Adding user message:', userMessage);
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsTyping(true);
 
     try {
-      let botResponse: string;
-      
-      if (mode === 'echo' && isAuthenticated) {
-        console.log('Using Echo/Claude API...');
-        botResponse = await callClaudeAPI(inputValue);
-      } else {
-        console.log('Using fallback response...');
-        botResponse = generateFallbackResponse(inputValue);
-      }
+      console.log('🤖 Calling Claude API...');
+      const botResponse = await callClaudeAPI(inputValue);
+      console.log('📨 Got bot response:', botResponse);
 
       const botMessage: Message = {
         id: messages.length + 2,
@@ -550,9 +509,10 @@ Always maintain academic integrity and promote genuine learning.
         timestamp: new Date()
       };
 
+      console.log('💬 Adding bot message:', botMessage);
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error('Error in handleSend:', error);
+      console.error('💥 Error in handleSend:', error);
       const errorMessage: Message = {
         id: messages.length + 2,
         type: 'bot',
@@ -561,6 +521,7 @@ Always maintain academic integrity and promote genuine learning.
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
+      console.log('🏁 Setting isTyping to false');
       setIsTyping(false);
     }
   };
@@ -609,39 +570,6 @@ Always maintain academic integrity and promote genuine learning.
         </div>
         
         <div className="flex items-center space-x-4">
-          {isAuthenticated ? (
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-purple-200">
-                  {(user as any)?.name || 'Student'}
-                </p>
-                <p className="text-xs text-purple-300">
-                  Balance: ${typeof balance === 'number' ? balance : 0}
-                </p>
-              </div>
-              <button
-                onClick={signOut}
-                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-purple-200">
-                {isLoading ? 'Loading...' : 'Demo Mode'}
-              </span>
-              {!isLoading && signIn && (
-                <button
-                  onClick={signIn}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-                >
-                  Sign In for AI Tutoring
-                </button>
-              )}
-            </div>
-          )}
-          
           <button
             onClick={handleNewChat}
             className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-md transition-colors"
@@ -656,15 +584,6 @@ Always maintain academic integrity and promote genuine learning.
             ?
           </button>
         </div>
-      </div>
-
-      {/* Mode indicator */}
-      <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 px-4 py-2 text-center">
-        <p className="text-sm text-blue-200">
-          {mode === 'echo' && isAuthenticated 
-            ? "🤖 AI-Powered Tutoring Active" 
-            : "📚 Educational Resources Mode - Sign in for AI tutoring"}
-        </p>
       </div>
 
       {/* Help Panel */}
